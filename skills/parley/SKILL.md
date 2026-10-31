@@ -17,12 +17,12 @@ The user takes many decisions each day, on many systems. Brief him like an execu
 - Each call: your plan, and what each option costs, in outcomes and numbers, not code.
 - Plain language. Define each term on first use.
 - At most 5 open calls at a time. The others wait their turn.
-- Each turn, give the state: decided, open, next.
+- Each turn in the chat, give the state: decided, open, next.
 - Each round builds on the last one. When a view you already showed changes, show that same view again, updated, with the change marked.
 - A side topic gets one line at the end.
 - End with one thing to answer.
 
-Use `show-me` for the views. Make a page only when the user asks for it: write the record, then load `artifacts`, design the page, build it, check it and publish it.
+Use `show-me` for the views. Make a page only when the user asks for it: load `artifacts`, then write, build, check and publish the page (see Page).
 
 ## Rules
 
@@ -39,50 +39,41 @@ Apply these rules to your plan and to each option that you recommend:
 ## Flow
 
 1. Get the facts. Search for earlier records on the topic where records go (see Record). A settled decision stays settled until the user opens it again.
-2. Sort the calls:
-   - A **your call** is taste, priority, or how it must work for the user. It starts empty.
-   - A **my call** is a choice that evidence can settle. It starts set to your plan, with one line of evidence.
-3. Ask in the chat. Give the answer line that takes all your plans. The answer line goes in the chat only, not in the record.
+2. Sort the calls. A your call is taste, priority, or how it must work for the user: it starts empty. A my call is a choice that evidence can settle: it starts set to your plan, with one line of evidence.
+3. Ask in the chat, with the answer line that takes all your plans.
 4. Apply each answer line. For `?N`, explain N first.
-5. When no call is open, read back: the terms in your own words, with each answer. Ask for `aligned`.
-6. On `aligned`, write the record as the contract. Goal files come after this step, and they cite the record.
+5. When no call is open, the answers are the contract. Read back first only when an answer is in the user's own words or leaves your plan: the terms in your own words, with each answer, for his `ok` or his correction.
+6. Write the record. Goal files come after it, and they cite it.
 
 ## Answer line
 
 ```text
-[slug rN] 1a 3:"own words" 4b:"a note" ?5 ok
-[slug rN] aligned
+[slug] 1a 3:"own words" 4b:"a note" ?5 ok
 ```
 
 - `1a` picks option a. `3:"..."` is an own answer. `4b:"..."` is a pick with a note.
 - `?5` asks you to explain 5 first.
-- `ok` accepts each my call that the line does not name.
-- `aligned` accepts the terms of a read-back.
+- `ok` accepts each my call that the line does not name, or a read-back.
 
 ## Record
 
-Write it when the user asks for a page, and at the contract. Use the format of `{baseDir}/template.md`. If you have a notes or vault skill, the record goes there: load that skill. If not, it goes in `/tmp/pages/<slug>/record.md`.
+Write it at the contract, in the format of `{baseDir}/template.md`, with `status: contract` and plain words in place of each blank. If you have a notes or vault skill, the record goes there: load that skill. If not, it goes in `/tmp/pages/<slug>/record.md`.
 
-- `round:` goes up by one each time you apply an answer line. A page starts each round from the record, not from the user's earlier taps.
-- `type: memo` while open. At the contract: `type: canon`, `status: contract`, and plain words in place of each blank.
-- Below the options of each decided card: `Answer: <letter>`, or `Answer: own · <short label>`. Under it, quote the user's exact words with the time in UTC from the session log: `> "words" (you, 10-25 13:27)`.
-- Never write a summary of a settled decision: quote the user's words. Decision numbers never change.
+- Below the options of each decision: `Answer: <letter>`, or `Answer: own · <short label>`. Under it, quote the user's exact words, never a summary: `> "words"`. Decision numbers never change.
 
 ## Page
 
-The record is the contract. The page explains it: you design the page for its topic, as `artifacts` says. Do not copy the record into the page. Lay out what the user needs to answer: the terms as they stand, the views from `show-me`, the settled points that matter.
+Design the page for its topic, as `artifacts` says. Lay out, in order: what is true today, concretely; the options; then what he needs to answer, each decision next to the view that explains it.
 
-Write the page source in `/tmp/pages/<slug>/page.md`, as an `artifacts` source. `build.mjs` builds it with the `artifacts` renderer and adds only the parley parts:
+Write the page source in `/tmp/pages/<slug>/page.md`: an `artifacts` source with a `## Decisions` section in the format of `{baseDir}/template.md`. Until the contract, that section is the only copy of the decisions: apply each answer line there, then build again. `build.mjs` adds the parley parts:
 
-- `{{cards}}` is where the decision cards of the record go: alone on its line, with a blank line before and after it.
-- `{?3}` is a blank: the answer to decision 3, or its plan while it is open. It changes when the user picks.
-- A ` ```mermaid ` block, in the record or in the page source, becomes a `show-me` diagram. The record keeps the Mermaid text, because Markdown viewers draw it.
-- On a live page, the bar comes last. Its Copy gives the answer line first.
-- The contract and the share copy have no cards to answer and no bar.
+- `## Decisions` becomes the cards: an open your call shows its options as buttons; a my call or a decided call folds to one line. `{{card 3}}`, alone on its line, places card 3 next to its view. A placed card carries only its option labels and the Plan line; its view holds the reasons.
+- `{?3}` is a blank: the answer to decision 3, or its plan while it is open. It follows the taps. Restate an answer only with a blank, and write no decided, open or next line: it goes stale at the first tap.
+- Any control can pick: `@click="$store.parley.pick(3, 'b')"`.
+- A ` ```mermaid ` block becomes a `show-me` diagram. It needs Pele: `npm install -g pele`.
+- A live page ends with the bar: Copy gives the answer line. The share copy and a `status: contract` source have no cards to answer and no bar: build the record for the contract page.
 
 ```sh
-node {baseDir}/build.mjs <record.md> <page.md> [out.html]   # /tmp/pages/<slug>/index.html
-node {baseDir}/build.mjs --share <record.md> <page.md>      # light copy
+node {baseDir}/build.mjs <page.md> [out.html]   # /tmp/pages/<slug>/index.html
+node {baseDir}/build.mjs --share <page.md>      # light copy
 ```
-
-When the record changes, update the page source and build it again.

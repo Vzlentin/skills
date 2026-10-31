@@ -7,10 +7,10 @@
 // Other scripts import createMarkdown() and renderPage() from this file.
 // A page gets Alpine when its body has an Alpine attribute.
 //
-// It uses what is already on the machine, first from the Pi install, then from the global npm prefix:
-// - Markdown and code colors: marked and highlight.js
-// - colors: Pi's `system` theme computed from the Ghostty colors.
+// Markdown: marked, in vendor/. Code colors: highlight.js, when the Pi install or the global npm prefix has it.
+// Colors: Pi's `system` theme computed from the Ghostty colors.
 //   Without Pi: the terminal theme (Ghostty colors, mapped by color number). Without Ghostty: saved colors.
+//   The page follows the viewer's light or dark setting: these colors for their own scheme, LIGHT or the saved colors for the other.
 // PAGES_NO_PI=1 renders as if Pi were not installed.
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -18,6 +18,7 @@ import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { Marked, Renderer } from "./vendor/marked.esm.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -50,9 +51,6 @@ const ALPINE_ATTRIBUTE = /\s(x-[a-z][\w:.-]*|@[a-z][\w:.-]*|:[a-z][\w-]*)="/;
 const pi = process.env.PAGES_NO_PI === "1" ? undefined : piInstall();
 const npmModules = globalModules();
 const moduleDirs = [pi?.modules, npmModules].filter(Boolean);
-const markedDir = findModule("marked");
-if (!markedDir) throw new Error("marked not found in Pi or in the global npm prefix: npm install -g marked");
-const { Marked, Renderer } = await import(pathToFileURL(join(markedDir, "lib/marked.esm.js")).href);
 const hljsDir = findModule("highlight.js");
 const hljs = hljsDir ? createRequire(import.meta.url)(hljsDir) : undefined;
 
@@ -90,9 +88,8 @@ export function escapeHtml(text) {
 	return String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 }
 
-// body is HTML. source is the text that the page carries inside, so any copy of the page gives it back.
-// key: the name of the state that the browser keeps for the page. Another key starts from the defaults.
-export async function renderPage({ slug, key = slug, title, body, source, sourcePath, share = false, out }) {
+// body is HTML. key: the name of the state that the browser keeps for the page. Another key starts from the defaults.
+export async function renderPage({ slug, key = slug, title, body, share = false, out }) {
 	const theme = share ? { source: "light", colors: terminalTokens(LIGHT) } : await loadTheme();
 	const interactive = ALPINE_ATTRIBUTE.test(body);
 	const vendor = (name) => readFileSync(join(here, name), "utf8");
@@ -100,13 +97,11 @@ export async function renderPage({ slug, key = slug, title, body, source, source
 		title: escapeHtml(title),
 		slug: escapeHtml(slug),
 		key: escapeHtml(key),
-		tokens: cssTokens(theme.colors),
+		theme: share ? `:root{${pageTokens(theme.colors)}}` : themeCss(theme.colors),
 		// Alpine starts when its own script runs: the plugin and the store of the way back come first, the page last.
 		head: interactive ? `<script>${vendor("vendor/alpine-persist.min.js")}</script>\n<script>${vendor("back.js")}</script>` : "",
 		alpine: interactive ? `<script>${vendor("vendor/alpine.min.js")}</script>` : "",
 		body,
-		footer: footer(sourcePath, theme.source),
-		source: (source ?? "").replaceAll("</script", "<\\/script"),
 		bodyClass: share ? "share" : "",
 	};
 	// A replacer function: page parts contain "$" sequences that a replacement string would expand.
@@ -144,8 +139,7 @@ if (import.meta.main) {
 	const flags = new Set(process.argv.slice(2).filter((arg) => arg.startsWith("--")));
 	const [sourcePath, out] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 	if (flags.has("--theme")) {
-		const theme = await loadTheme();
-		console.log(`:root{${cssTokens(theme.colors)}}`);
+		console.log(themeCss((await loadTheme()).colors));
 		process.exit(0);
 	}
 	if (!sourcePath) {
@@ -157,7 +151,7 @@ if (import.meta.main) {
 	if (!meta.page) throw new Error("The source needs a `page:` slug in its frontmatter");
 	const { markdown } = createMarkdown({ base: dirname(resolve(sourcePath)) });
 	const title = plainText(body.match(/^# (.+)$/m)?.[1] ?? meta.title ?? meta.page);
-	const page = await renderPage({ slug: meta.page, title, body: markdown(body), source, sourcePath, share: flags.has("--share"), out });
+	const page = await renderPage({ slug: meta.page, title, body: markdown(body), share: flags.has("--share"), out });
 	console.log(`${page.target} ${page.bytes} bytes, ${page.interactive ? "Alpine" : "no Alpine"}, colors: ${page.colors}`);
 }
 
@@ -222,12 +216,6 @@ function renderTable(token) {
 	return `<div class="tw">${Renderer.prototype.table.call(this, token)}</div>\n`;
 }
 
-function footer(sourcePath, colors) {
-	const short = (path) => path.replace(homedir(), "~");
-	const from = sourcePath ? ` from <code>${escapeHtml(short(resolve(sourcePath)))}</code>` : "";
-	return `Built by <code>${escapeHtml(short(join(here, "render.mjs")))}</code>${from}. Colors: ${escapeHtml(colors)}. The source is inside this page: <code>#page-source</code>.`;
-}
-
 // ---------------------------------------------------------------- colors
 
 async function loadTheme() {
@@ -257,7 +245,41 @@ async function loadTheme() {
 		}
 	}
 	if (terminal) return { source: `terminal theme, Ghostty ${terminal.name}`, colors: terminalTokens(terminal) };
-	return { source: "saved colors", colors: JSON.parse(readFileSync(join(here, "saved-colors.json"), "utf8")) };
+	return { source: "saved colors", colors: savedColors() };
+}
+
+function savedColors() {
+	return JSON.parse(readFileSync(join(here, "saved-colors.json"), "utf8"));
+}
+
+// The page follows the viewer's light or dark setting: these colors for their own scheme, the light palette
+// or the saved colors for the other. A host that sets data-theme on <html> wins over the setting.
+function themeCss(colors) {
+	const dark = isDark(colors.bg);
+	const [own, other] = dark ? ["dark", "light"] : ["light", "dark"];
+	const tokens = pageTokens(dark ? terminalTokens(LIGHT) : savedColors());
+	return `:root{${pageTokens(colors)}}
+@media (prefers-color-scheme:${other}){:root:not([data-theme=${own}]){${tokens}}}
+:root[data-theme=${other}]{${tokens}}`;
+}
+
+// The tokens that the shell and pages use, the same names in both schemes, and --sunk for wells and code.
+function pageTokens(colors) {
+	const dark = isDark(colors.bg);
+	const picked = Object.fromEntries(Object.keys(terminalTokens(LIGHT)).map((name) => [name, colors[name]]));
+	return `color-scheme:${dark ? "dark" : "light"};${cssTokens({ ...picked, sunk: mix("#000000", colors.bg, dark ? 0.22 : 0.04) })}`;
+}
+
+function isDark(hex) {
+	const { r, g, b } = rgb(hex);
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128;
+}
+
+// a and b mixed, with `share` of a.
+function mix(a, b, share) {
+	const [x, y] = [rgb(a), rgb(b)];
+	const channel = (key) => Math.round(x[key] * share + y[key] * (1 - share)).toString(16).padStart(2, "0");
+	return `#${channel("r")}${channel("g")}${channel("b")}`;
 }
 
 // Ghostty's own values; `+show-config` omits the defaults, so read those from `--default` first.
@@ -282,11 +304,6 @@ function showConfig(extra) {
 
 // The terminal theme without Pi: the same token names, taken from the color numbers.
 function terminalTokens({ background: bg, foreground: fg, palette: p }) {
-	const mix = (a, b, share) => {
-		const [x, y] = [rgb(a), rgb(b)];
-		const channel = (key) => Math.round(x[key] * share + y[key] * (1 - share)).toString(16).padStart(2, "0");
-		return `#${channel("r")}${channel("g")}${channel("b")}`;
-	};
 	return {
 		bg,
 		fg,

@@ -1,5 +1,6 @@
 // The cards of a parley page, on the way back of artifacts: each card is three fields of $store.back,
 // and the answer line is a part of it. The state functions come from state.mjs, before this script.
+// Any control of the page can pick: @click="$store.parley.pick(3, 'b')".
 document.addEventListener("alpine:init", () => {
 	const P = JSON.parse(document.getElementById("parley-data").textContent);
 	const byNumber = new Map(P.decisions.map((d) => [d.n, d]));
@@ -8,8 +9,19 @@ document.addEventListener("alpine:init", () => {
 		for (const [name, value] of Object.entries(freshCard(d))) back.field(`${d.n} ${name}`, value, { list: false });
 	}
 
+	let clearTimer;
 	Alpine.store("parley", {
-		P,
+		// Clear asks "Clear? Yes / No" in the page. The question goes away after 5 s.
+		clearing: false,
+		askClear() {
+			this.clearing = true;
+			clearTimeout(clearTimer);
+			clearTimer = setTimeout(() => (this.clearing = false), 5000);
+		},
+		clear() {
+			this.clearing = false;
+			back.reset();
+		},
 		card(n) {
 			return { pick: back.values[`${n} pick`], note: back.values[`${n} note`], ask: back.values[`${n} ask`] };
 		},
@@ -18,10 +30,6 @@ document.addEventListener("alpine:init", () => {
 		},
 		pick(n, key) {
 			back.values[`${n} pick`] = nextPick(byNumber.get(n), this.card(n), key);
-		},
-		dot(d) {
-			const card = this.card(d.n);
-			return card.ask ? "ask" : cardKind(d, card);
 		},
 		// An object, so Alpine also takes away the class that the HTML gives.
 		blank(n) {
@@ -41,27 +49,10 @@ document.addEventListener("alpine:init", () => {
 				if (card.pick) parts.push(`${d.n}${card.pick}${note ? `:"${note}"` : ""}`);
 				else if (note) parts.push(`${d.n}:"${note}"`);
 			}
+			// ok accepts the my calls that the line does not name, or, with nothing open, the terms as they stand.
 			const open = P.decisions.some((d) => !d.decided);
-			if (!open && !parts.length) parts.push("aligned");
-			else if (open && P.decisions.some((d) => d.whose === "my" && !d.decided)) parts.push("ok");
-			return `[${P.slug} r${P.round}] ${parts.join(" ")}`.trim();
-		},
-		// The state of the round, above the dots: "open" while something waits for the user, else "done".
-		get head() {
-			const yours = P.decisions.filter((d) => d.whose === "your" && !d.decided);
-			const open = yours.filter((d) => cardKind(d, this.card(d.n)) === "open").length;
-			const fixes = P.decisions.filter((d) => d.decided && this.changed(d.n)).length;
-			if (yours.length) return open ? { state: "open", text: `${open} of ${yours.length} your calls open` } : { state: "done", text: "your calls answered" };
-			if (fixes) return { state: "open", text: `${fixes} correction${fixes > 1 ? "s" : ""}` };
-			return { state: "done", text: "all decided: copy aligned if the terms are right" };
-		},
-		get asks() {
-			return P.decisions.filter((d) => this.card(d.n).ask).length;
-		},
-		go(n) {
-			const card = document.getElementById(`d-${n}`);
-			if (card.tagName === "DETAILS") card.open = true;
-			card.scrollIntoView({ block: "start" });
+			if (open ? P.decisions.some((d) => d.whose === "my" && !d.decided) : !parts.length) parts.push("ok");
+			return `[${P.slug}] ${parts.join(" ")}`.trim();
 		},
 	});
 	back.part(() => Alpine.store("parley").line());

@@ -21,9 +21,15 @@ function globalModules() {
 	}
 }
 
-// A Mermaid parse error throws: the source is wrong.
+// The code of the error when Pele is not installed. A command shows its message in one line, not a stack trace.
+export const PELE_MISSING = "PELE_MISSING";
+
+// A Mermaid parse error throws: the source is wrong. Without Pele, the error has the code PELE_MISSING.
 export function renderMermaid(source, { large = false } = {}) {
-	if (!pele) throw new Error(`pele not found at ${peleDir}: npm install -g pele`);
+	if (!pele) {
+		const message = `Mermaid needs Pele, and it is not in ${dirname(peleDir)}. Install it: npm install -g pele`;
+		throw Object.assign(new Error(message), { code: PELE_MISSING });
+	}
 	const { svg } = pele.render(source, { padding: large ? 12 : 16 });
 	// Pele leaves the background transparent, which is unreadable in GitHub's dark theme.
 	// --_bg is --pele-bg: white on its own, the page color inside a page.
@@ -47,6 +53,12 @@ if (import.meta.main) {
 		console.error("usage: mermaid.mjs [--large] <diagram.mmd> <diagram.svg>");
 		process.exit(2);
 	}
-	writeFileSync(output, renderMermaid(readFileSync(input, "utf8"), { large }));
+	try {
+		writeFileSync(output, renderMermaid(readFileSync(input, "utf8"), { large }));
+	} catch (error) {
+		if (error.code !== PELE_MISSING) throw error;
+		console.error(error.message);
+		process.exit(1);
+	}
 	console.log(output);
 }

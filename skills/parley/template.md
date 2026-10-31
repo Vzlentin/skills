@@ -1,14 +1,10 @@
 ---
-type: memo
 page: install-lock
-round: 1
 status: open
 description: "One line: what this parley decides."
 ---
 
 # install lock: who owns it
-
-Two or three short sentences: what you decide on this page, and how to answer. Times are UTC.
 
 ## Terms
 
@@ -25,13 +21,12 @@ stateDiagram-v2
 
 ### 1 · Lock owner · your call
 
-The tension first: what you gain and what you pay, in 1 to 3 sentences. Add a show-me block when it helps.
+The tension, in one or two sentences.
 
 - a · **harness owns the lock** · plan
   + What you gain.
   - What you pay.
 - b · **each package has its own lock**
-  + What you gain.
   - What you pay.
 
 Plan: a, and why, in one sentence.
@@ -41,12 +36,11 @@ Plan: a, and why, in one sentence.
 - a · **a dead PID is taken over** · plan
   + One line of evidence: a test, a spike, or a file and line.
 - b · **a timeout**
-  - What you pay.
 
 Answer: a
-> "ok" (you, 10-25 13:27)
+> "ok"
 
 ## Settled
 
 - **A decision from an earlier record or from chat.**
-  > "the user's exact words" (you, 10-25 11:03)
+  > "the user's exact words"
