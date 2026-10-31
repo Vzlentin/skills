@@ -18,4 +18,4 @@ npx skills update -g
 Install all of them: `parley` uses `artifacts` and `show-me`. The skills CLI needs Node.js 22.20 or later.
 `dia` works on macOS only. Its `read` and `eval` need Dia to start with `--enable-applescript-javascript`: `dia.mjs launcher` makes an app that opens Dia that way. While the flag is on, any program with the Automation permission for Dia can read and control all your tabs.
 
-`show-me` needs [Pele](https://www.npmjs.com/package/pele): `npm install -g pele`. `artifacts` uses the `marked` of Pi's install; without Pi, `npm install -g marked`.
+`show-me` needs [Pele](https://www.npmjs.com/package/pele): `npm install -g pele`. `artifacts` colors code with the `highlight.js` of Pi's install or of the global npm folder, when there is one.
