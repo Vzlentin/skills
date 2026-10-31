@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createMarkdown, escapeHtml, frontmatter, plainText, renderPage } from "../artifacts/render.mjs";
-import { renderMermaid } from "../show-me/mermaid.mjs";
+import { PELE_MISSING, renderMermaid } from "../show-me/mermaid.mjs";
 import { blankKind, blankText, freshCard } from "./state.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -22,7 +22,7 @@ const OPTION = /^- ([a-z]) · (.+?)(?: · (plan))?\s*$/;
 const GAIN = /^\s+\+ (.*)$/;
 const COST = /^\s+- (.*)$/;
 const ANSWER = /^Answer: ([a-z]|own)(?: · (.+?))?\s*$/;
-// Where cards go: {{card 3}} for one card, {{decisions}} (the `## Decisions` section) for the others.
+// Where cards go: {{card 3}} for one card, {{decisions}} for the others. The build writes {{decisions}} in place of `## Decisions`: the source cannot.
 const PLACE = /^\{\{(?:card (\d+)|decisions)\}\}[ \t]*(?:\n|$)/;
 
 const flags = new Set(process.argv.slice(2).filter((arg) => arg.startsWith("--")));
@@ -48,6 +48,7 @@ if (start === undefined) throw new Error("The source needs a `## Decisions` sect
 const end = headings.find((at) => at > start) ?? lines.length;
 const decisions = splitAt(lines.slice(start + 1, end).join("\n"), "### ").slice(1).map(parseDecision);
 const byNumber = new Map(decisions.map((decision) => [decision.n, decision]));
+if (unfenced(lines).some((at) => /^\{\{decisions\}\}[ \t]*$/.test(lines[at]))) throw new Error("The source cannot write {{decisions}}: the `## Decisions` section shows the cards that no {{card N}} places");
 const pageLines = [...lines.slice(0, start), "", "{{decisions}}", "", ...lines.slice(end)];
 
 // The cards that a {{card N}} line places. The decisions section shows the others.
@@ -72,11 +73,30 @@ const cards = {
 		const match = src.match(PLACE);
 		return match ? { type: "cards", raw: match[0], n: Number(match[1]) } : undefined;
 	},
-	renderer: ({ n }) => (n ? renderCards([byNumber.get(n)]) : renderSection()),
+	renderer: ({ n }) => {
+		rendered.push(n || "decisions");
+		return n ? renderCards([byNumber.get(n)]) : renderSection();
+	},
 };
 const { markdown: block, inline } = createMarkdown({ base: dirname(resolve(sourcePath)), code: drawDiagram, extensions: [cards] });
-// The cards are a part of the page, so this one pass fills the blanks of the page and of the cards.
-const pageHtml = fillBlanks(block(pageLines.join("\n")));
+// What the cards extension wrote: each placed card and the section, once. Marked does not see a line inside an HTML block.
+const rendered = [];
+let pageHtml;
+try {
+	// The cards are a part of the page, so this one pass fills the blanks of the page and of the cards.
+	pageHtml = fillBlanks(block(pageLines.join("\n")));
+} catch (error) {
+	if (error.code !== PELE_MISSING) throw error;
+	// Marked adds its own lines to the message: keep the first.
+	console.error(error.message.split("\n")[0]);
+	process.exit(1);
+}
+for (const n of [...placed, "decisions"]) {
+	const times = rendered.filter((item) => item === n).length;
+	if (times !== 1) throw new Error(`${n === "decisions" ? "The decisions section" : `Card ${n}`} is on the page ${times} times, not 1. Write {{card N}} alone on its line, with a blank line before and after it inside HTML`);
+}
+const extra = rendered.find((item) => item !== "decisions" && !placed.has(item));
+if (extra) throw new Error(`Card ${extra} is on the page twice: write {{card ${extra}}} alone on its line, at the start of the line`);
 const title = plainText(body.match(/^# (.+)$/m)?.[1] ?? meta.title ?? meta.page);
 
 const data = {
