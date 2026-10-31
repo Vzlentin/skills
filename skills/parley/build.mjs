@@ -59,6 +59,9 @@ for (const at of unfenced(pageLines)) {
 	if (placed.has(n)) throw new Error(`{{card ${n}}} is on the page twice`);
 	placed.add(n);
 }
+// A state line in the text ("Decided: …", "Open: …") goes stale at the first tap. The cards and the blanks show the state.
+const stateLabels = new Set(unfenced(pageLines).flatMap((at) => [...pageLines[at].replace(/<[^>]*>/g, "").matchAll(/\b(Decided|Open|Next)\b[*_]*\s*:/g)].map((match) => match[1])));
+if (stateLabels.size > 1) console.error(`Warning: the page writes the state as text (${[...stateLabels].join(", ")}). It goes stale at the first tap: use blanks {?N}, or leave the state to the cards`);
 
 const cards = {
 	name: "cards",
@@ -282,8 +285,9 @@ function renderBlank(n) {
 }
 
 // The bar of the way back of artifacts: one row with the answer line and Copy. Clear sits above it, once there is something to clear.
+// Clear asks again in the page, not with confirm(): some hosts block confirm(), and it then does nothing.
 function bar() {
-	return `<p class="reset" x-data x-show="Object.keys($store.back.edits).length" x-cloak><a href="#" @click.prevent="confirm('Clear your answers and notes?') && $store.back.reset()">Clear my answers</a></p>
+	return `<p class="reset" x-data x-show="Object.keys($store.back.edits).length" x-cloak><a href="#" x-show="!$store.parley.clearing" @click.prevent="$store.parley.askClear()">Clear my answers</a><span x-show="$store.parley.clearing" x-cloak>Clear your answers and notes? <a href="#" class="yes" @click.prevent="$store.parley.clear()">Yes</a> <a href="#" @click.prevent="$store.parley.clearing = false">No</a></span></p>
 <div class="bar" x-data>
   <div class="line" x-text="$store.back.text"></div>
   <button class="primary" x-show="typeof sendPrompt === 'function'" x-cloak @click="sendPrompt($store.back.text)">Send</button><button class="primary" @click="$store.back.copy()">Copy</button>

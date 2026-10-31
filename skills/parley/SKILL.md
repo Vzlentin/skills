@@ -17,7 +17,7 @@ The user takes many decisions each day, on many systems. Brief him like an execu
 - Each call: your plan, and what each option costs, in outcomes and numbers, not code.
 - Plain language. Define each term on first use.
 - At most 5 open calls at a time. The others wait their turn.
-- Each turn, give the state: decided, open, next.
+- Each turn in the chat, give the state: decided, open, next.
 - Each round builds on the last one. When a view you already showed changes, show that same view again, updated, with the change marked.
 - A side topic gets one line at the end.
 - End with one thing to answer.
@@ -68,9 +68,9 @@ Design the page for its topic, as `artifacts` says. Lay out, in order: what is t
 Write the page source in `/tmp/pages/<slug>/page.md`: an `artifacts` source with a `## Decisions` section in the format of `{baseDir}/template.md`. Until the contract, that section is the only copy of the decisions: apply each answer line there, then build again. `build.mjs` adds the parley parts:
 
 - `## Decisions` becomes the cards: an open your call shows its options as buttons; a my call or a decided call folds to one line. `{{card 3}}`, alone on its line, places card 3 next to its view. A placed card carries only its option labels and the Plan line; its view holds the reasons.
-- `{?3}` is a blank: the answer to decision 3, or its plan while it is open.
+- `{?3}` is a blank: the answer to decision 3, or its plan while it is open. It follows the taps. Restate an answer only with a blank, and write no decided, open or next line: it goes stale at the first tap.
 - Any control can pick: `@click="$store.parley.pick(3, 'b')"`.
-- A ` ```mermaid ` block becomes a `show-me` diagram.
+- A ` ```mermaid ` block becomes a `show-me` diagram. It needs Pele: `npm install -g pele`.
 - A live page ends with the bar: Copy gives the answer line. The share copy and a `status: contract` source have no cards to answer and no bar: build the record for the contract page.
 
 ```sh

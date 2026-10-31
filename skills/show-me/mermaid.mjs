@@ -21,9 +21,12 @@ function globalModules() {
 	}
 }
 
-// A Mermaid parse error throws: the source is wrong.
+// A Mermaid parse error throws: the source is wrong. Without Pele, the script stops with one line, not a stack trace.
 export function renderMermaid(source, { large = false } = {}) {
-	if (!pele) throw new Error(`pele not found at ${peleDir}: npm install -g pele`);
+	if (!pele) {
+		console.error(`Mermaid needs Pele, and it is not in ${dirname(peleDir)}. Install it: npm install -g pele`);
+		process.exit(1);
+	}
 	const { svg } = pele.render(source, { padding: large ? 12 : 16 });
 	// Pele leaves the background transparent, which is unreadable in GitHub's dark theme.
 	// --_bg is --pele-bg: white on its own, the page color inside a page.

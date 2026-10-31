@@ -9,7 +9,19 @@ document.addEventListener("alpine:init", () => {
 		for (const [name, value] of Object.entries(freshCard(d))) back.field(`${d.n} ${name}`, value, { list: false });
 	}
 
+	let clearTimer;
 	Alpine.store("parley", {
+		// Clear asks "Clear? Yes / No" in the page. The question goes away after 5 s.
+		clearing: false,
+		askClear() {
+			this.clearing = true;
+			clearTimeout(clearTimer);
+			clearTimer = setTimeout(() => (this.clearing = false), 5000);
+		},
+		clear() {
+			this.clearing = false;
+			back.reset();
+		},
 		card(n) {
 			return { pick: back.values[`${n} pick`], note: back.values[`${n} note`], ask: back.values[`${n} ask`] };
 		},

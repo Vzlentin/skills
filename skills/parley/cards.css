@@ -46,6 +46,7 @@ details.why .o{margin:8px 0}
 .dec[open]>summary{margin-bottom:6px}
 .receipt blockquote{margin:6px 0}
 .after{font-size:15px}
-.reset{margin:16px 0 0}
+.reset{margin:16px 0 0;color:var(--muted);font-size:14px}
+.reset .yes{color:var(--error);font-weight:600;margin:0 8px}
 .parley.contract .opts{display:none}
 @media print{.dec{break-inside:avoid}}
