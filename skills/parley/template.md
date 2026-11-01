@@ -44,3 +44,5 @@ Answer: a
 
 - **A decision from an earlier record or from chat.**
   > "the user's exact words"
+
+Design sense: what the lenses changed in the plan, or none.

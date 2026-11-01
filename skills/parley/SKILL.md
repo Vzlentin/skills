@@ -31,15 +31,17 @@ Use `show-me` for the views. Make a page only when the user asks for it: load `a
 
 ## Design sense
 
-Aim for evolvability: a system that stays cheap to change. Life is the best example of it, and three of its ideas guide your plan and each option. Treat them as lenses. When the problem asks for something else, follow the problem and say why.
+Aim for evolvability: a system that stays cheap to change. Life is the best example of it, and four of its ideas guide your plan and each option. Treat them as lenses. When the problem asks for something else, follow the problem and say why.
 
 **Tinkering** (Jacob). Evolution never starts from a blank page. It reuses what already works. Start from what exists, and prefer the answer that removes a decision to the one that adds machinery.
 
-**Facilitated variation** (Kirschner and Gerhart). Life varies cheaply because its core parts work alone, link weakly, and exist once. Build the same way: small parts with one job each, one copy of each thing, and a whole that comes from how they compose.
+**Facilitated variation** (Kirschner and Gerhart). Life varies cheaply because a conserved core does the hard work, and its parts work alone and link weakly. Build the same way: standalone primitives with one job each, one source of truth for each fact, and a whole that comes from how they compose. A copy is a trial: it joins the core when a second user needs it, or it goes. Each primitive has a membrane: it validates what comes in once, at ingress, and trusts its own data inside. Parse, don't validate. Life's exploratory processes make many variants and keep the ones that a target selects: make variants cheap, and selection sharp.
 
-**Canalization** (Waddington). No gene scripts an embryo step by step. Its landscape leads many paths to the same form. Shape the ground, with defaults, contracts and checks, not the path.
+**Canalization** (Waddington). No gene scripts an embryo step by step. Its landscape leads many paths to the same form. Shape the ground, with defaults, contracts and checks, not the path. The ground acts at every step: when a contract can be a check (a fitness function), make it a check. Check the invariant, not the form.
 
-Where evolution must keep its leftovers, you can delete them: no migration or compatibility code that will not make sense later. And design for where the system will live: the user's own machine and tools.
+**The barrier** (Weismann). The body does not write the germline. Design so that the agent that does the work cannot change what selects it: its tests, checks, judge and skills. What it learns becomes heritable only after a selection. Without the barrier, Goodhart's law takes over.
+
+Life also shapes by deletion: a hand gets its fingers when the cells between them die (apoptosis). Each change asks what can go. Write code that is easy to delete: no migration or compatibility code that will not make sense later. And design for where the system will live: the user's own machine and tools.
 
 ## Flow
 
@@ -65,6 +67,7 @@ Where evolution must keep its leftovers, you can delete them: no migration or co
 Write it at the contract, in the format of `{baseDir}/template.md`, with `status: contract` and plain words in place of each blank. If you have a notes or vault skill, the record goes there: load that skill. If not, it goes in `/tmp/pages/<slug>/record.md`.
 
 - Below the options of each decision: `Answer: <letter>`, or `Answer: own · <short label>`. Under it, quote the user's exact words, never a summary: `> "words"`. Decision numbers never change.
+- The last line: `Design sense:` and what the lenses changed in your plan, or `none`.
 
 ## Page
 
