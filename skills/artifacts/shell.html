@@ -70,6 +70,9 @@ img{max-width:100%;height:auto;border-radius:8px}
 .pill.good{color:var(--success);background:color-mix(in srgb,var(--success) 14%,var(--bg))}
 .pill.warn{color:var(--warning);background:color-mix(in srgb,var(--warning) 14%,var(--bg))}
 .pill.bad{color:var(--error);background:color-mix(in srgb,var(--error) 14%,var(--bg))}
+/* a term in the color of a series, as the widgets draw it: .term.s1 to .term.s4 */
+.term{--c:var(--fg);font:600 .86em var(--mono);padding:1px 7px;border-radius:6px;white-space:nowrap;color:var(--c);background:color-mix(in srgb,var(--c) 14%,var(--bg))}
+.term.s1{--c:var(--series-1)} .term.s2{--c:var(--series-2)} .term.s3{--c:var(--series-3)} .term.s4{--c:var(--series-4)}
 button{font:600 15px var(--sans);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-height:40px;cursor:pointer;background:var(--sunk);color:var(--fg)}
 button.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}
 textarea,input[type=text]{width:100%;background:var(--sunk);color:var(--fg);border:1px solid var(--border-muted);border-radius:10px;padding:9px 11px;font:15px/1.5 var(--sans)}
