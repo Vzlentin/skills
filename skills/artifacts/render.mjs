@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Builds one self-contained HTML page: the theme, the base shell, and Alpine when the page uses it.
+// Builds one self-contained HTML page: the theme, the base shell, Alpine and the widget kit when the page uses them.
 // Usage: render.mjs [--share] <source.md> [out.html]
 //        render.mjs --theme
 // The page goes to /tmp/pages/<slug>/index.html by default: build output stays out of the source folder.
 // --share: a light copy for other people and for print. --theme: the colors as CSS variables.
 // Other scripts import createMarkdown() and renderPage() from this file.
-// A page gets Alpine when its body has an Alpine attribute.
+// A page gets Alpine when its body has an Alpine attribute, and Lit with kit.js when its body has a <w-…> tag.
+// Each <w-name> tag with a widgets/w-name.js file gets that file, and the files that its own tags name.
 //
 // Markdown: marked, in vendor/. Code colors: highlight.js, when the Pi install or the global npm prefix has it.
 // Colors: Pi's `system` theme computed from the Ghostty colors.
@@ -47,6 +48,8 @@ const WIKILINK = {
 const IMAGE_TYPES = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
 // An Alpine attribute with a plain quote. In a code block the quote is escaped, so a code sample does not count.
 const ALPINE_ATTRIBUTE = /\s(x-[a-z][\w:.-]*|@[a-z][\w:.-]*|:[a-z][\w-]*)="/;
+// A widget tag with a plain "<". In a code block the "<" is escaped, so a code sample does not count.
+const WIDGET_TAG = /<(w-[a-z][\w-]*)/;
 
 const pi = process.env.PAGES_NO_PI === "1" ? undefined : piInstall();
 const npmModules = globalModules();
@@ -93,13 +96,20 @@ export async function renderPage({ slug, key = slug, title, body, share = false,
 	const theme = share ? { source: "light", colors: terminalTokens(LIGHT) } : await loadTheme();
 	const interactive = ALPINE_ATTRIBUTE.test(body);
 	const vendor = (name) => readFileSync(join(here, name), "utf8");
+	const widgets = widgetFiles(body);
+	const kit = WIDGET_TAG.test(body);
+	const head = [];
+	// Alpine starts when its own script runs: the plugin and the store of the way back come first, the page last.
+	if (interactive) head.push(`<script>${vendor("vendor/alpine-persist.min.js")}</script>`, `<script>${vendor("back.js")}</script>`);
+	// Module scripts run in order after the page is parsed: the widget files, then the widget scripts of the page.
+	if (kit) head.push(`<script>${vendor("vendor/lit.min.js")}</script>`, `<script>${vendor("kit.js")}</script>`);
+	for (const [name, text] of widgets) head.push(`<script type="module" data-widget="${name}">${text}</script>`);
 	const parts = {
 		title: escapeHtml(title),
 		slug: escapeHtml(slug),
 		key: escapeHtml(key),
 		theme: share ? `:root{${pageTokens(theme.colors)}}` : themeCss(theme.colors),
-		// Alpine starts when its own script runs: the plugin and the store of the way back come first, the page last.
-		head: interactive ? `<script>${vendor("vendor/alpine-persist.min.js")}</script>\n<script>${vendor("back.js")}</script>` : "",
+		head: head.join("\n"),
 		alpine: interactive ? `<script>${vendor("vendor/alpine.min.js")}</script>` : "",
 		body,
 		bodyClass: share ? "share" : "",
@@ -112,7 +122,22 @@ export async function renderPage({ slug, key = slug, title, body, share = false,
 	const target = out ?? join("/tmp/pages", slug, share ? "share.html" : "index.html");
 	mkdirSync(dirname(target), { recursive: true });
 	writeFileSync(target, page);
-	return { target, bytes: page.length, colors: theme.source, interactive };
+	return { target, bytes: page.length, colors: theme.source, interactive, kit, widgets: [...widgets.keys()] };
+}
+
+// The widgets/ files that the tags of the body name, and the files that their own tags name.
+function widgetFiles(body) {
+	const found = new Map();
+	const visit = (text) => {
+		for (const [, name] of text.matchAll(new RegExp(WIDGET_TAG, "g"))) {
+			const file = join(here, "widgets", `${name}.js`);
+			if (found.has(name) || !existsSync(file)) continue;
+			found.set(name, readFileSync(file, "utf8"));
+			visit(found.get(name));
+		}
+	};
+	visit(body);
+	return found;
 }
 
 export function frontmatter(text) {
@@ -152,7 +177,8 @@ if (import.meta.main) {
 	const { markdown } = createMarkdown({ base: dirname(resolve(sourcePath)) });
 	const title = plainText(body.match(/^# (.+)$/m)?.[1] ?? meta.title ?? meta.page);
 	const page = await renderPage({ slug: meta.page, title, body: markdown(body), share: flags.has("--share"), out });
-	console.log(`${page.target} ${page.bytes} bytes, ${page.interactive ? "Alpine" : "no Alpine"}, colors: ${page.colors}`);
+	const widgets = page.widgets.length ? ` (${page.widgets.join(", ")})` : "";
+	console.log(`${page.target} ${page.bytes} bytes, ${page.interactive ? "Alpine" : "no Alpine"}, ${page.kit ? `kit${widgets}` : "no kit"}, colors: ${page.colors}`);
 }
 
 // ---------------------------------------------------------------- modules
@@ -263,11 +289,25 @@ function themeCss(colors) {
 :root[data-theme=${other}]{${tokens}}`;
 }
 
-// The tokens that the shell and pages use, the same names in both schemes, and --sunk for wells and code.
+// The tokens that the shell and pages use, the same names in both schemes, --sunk for wells and code,
+// and --series-1 to --series-4 for the series of a chart.
 function pageTokens(colors) {
 	const dark = isDark(colors.bg);
 	const picked = Object.fromEntries(Object.keys(terminalTokens(LIGHT)).map((name) => [name, colors[name]]));
-	return `color-scheme:${dark ? "dark" : "light"};${cssTokens({ ...picked, sunk: mix("#000000", colors.bg, dark ? 0.22 : 0.04) })}`;
+	return `color-scheme:${dark ? "dark" : "light"};${cssTokens({ ...picked, sunk: mix("#000000", colors.bg, dark ? 0.22 : 0.04), ...seriesTokens(colors, dark) })}`;
+}
+
+// A categorical palette: four colors that differ in each scheme. Without Pi, syntaxVariable is the text color:
+// series 2 takes success. Series 4 is the theme color farthest from the other three and from the accent.
+function seriesTokens(colors, dark) {
+	const variable = colors.syntaxVariable;
+	const plain = !variable || variable.toLowerCase() === colors.fg.toLowerCase();
+	const first = dark ? [colors.mdLink, plain ? colors.success : variable, colors.error] : [colors.syntaxKeyword, colors.success, colors.warning];
+	const taken = [...first, colors.accent].filter(Boolean).map(rgb);
+	const distance = (hex) => Math.min(...taken.map((other) => Math.hypot(...["r", "g", "b"].map((key) => rgb(hex)[key] - other[key]))));
+	const candidates = [colors.syntaxType, colors.syntaxFunction, colors.syntaxString, colors.syntaxNumber, colors.mdCode, colors.mdHeading, colors.warning, colors.success, colors.error];
+	const fourth = candidates.filter((hex) => /^#[0-9a-f]{6}$/i.test(hex ?? "")).sort((a, b) => distance(b) - distance(a))[0];
+	return Object.fromEntries([...first, fourth].map((hex, index) => [`series-${index + 1}`, hex]));
 }
 
 function isDark(hex) {
