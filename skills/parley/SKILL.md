@@ -26,15 +26,20 @@ Use `show-me` for the views. Make a page only when the user asks for it: load `a
 
 ## Rules
 
-Apply these rules to your plan and to each option that you recommend:
-
-- Do not overengineer.
-- Take the lazy answer first. Look for the answer that removes a decision.
-- No vestigial code: no migration or compatibility code that will not make sense later.
-- One copy of each thing.
-- It must work for the user first: his own machine and tools. When Herdr, Ghostty or a vault is there, use it.
 - Do not make the user repeat himself. Read the earlier records and the memory first, when they exist.
 - Get the facts yourself. Ask the user only what only he can answer.
+
+## Design sense
+
+Aim for evolvability: a system that stays cheap to change. Life is the best example of it, and three of its ideas guide your plan and each option. Treat them as lenses. When the problem asks for something else, follow the problem and say why.
+
+**Tinkering** (Jacob). Evolution never starts from a blank page. It reuses what already works. Start from what exists, and prefer the answer that removes a decision to the one that adds machinery.
+
+**Facilitated variation** (Kirschner and Gerhart). Life varies cheaply because its core parts work alone, link weakly, and exist once. Build the same way: small parts with one job each, one copy of each thing, and a whole that comes from how they compose.
+
+**Canalization** (Waddington). No gene scripts an embryo step by step. Its landscape leads many paths to the same form. Shape the ground, with defaults, contracts and checks, not the path.
+
+Where evolution must keep its leftovers, you can delete them: no migration or compatibility code that will not make sense later. And design for where the system will live: the user's own machine and tools.
 
 ## Flow
 
