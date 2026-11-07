@@ -1,4 +1,4 @@
-/* The parts of a parley page: the blanks, the decision cards and the bar. The page lays out the rest. */
+/* The parts of a parley page: the blanks and the decision cards. artifacts lays out the page and gives the bar. */
 .blank{display:inline-block;text-decoration:none;color:var(--fg);border:1px dashed var(--warning);border-radius:7px;padding:0 6px;line-height:1.5;margin:1px 0}
 .blank sup{font:600 10px var(--mono);color:var(--muted);margin-left:3px}
 .blank.plan{border:1px solid var(--border-muted);color:var(--text)}
@@ -25,7 +25,7 @@
 .opt.sel .key{color:var(--accent)}
 .planbadge{font:600 10px var(--mono);font-style:normal;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:5px;padding:0 4px;margin-left:4px;vertical-align:1px}
 details.why{font-size:15px;margin-top:4px}
-details.why>summary,.acts a,.reset a{cursor:pointer;color:var(--muted);font-size:14px;text-decoration:none}
+details.why>summary,.acts a{cursor:pointer;color:var(--muted);font-size:14px;text-decoration:none}
 details.why .o{margin:8px 0}
 .gain,.cost{display:block;font-size:14px;line-height:1.45}
 .gain{color:var(--success)} .gain::before{content:"+ "}
@@ -46,7 +46,5 @@ details.why .o{margin:8px 0}
 .dec[open]>summary{margin-bottom:6px}
 .receipt blockquote{margin:6px 0}
 .after{font-size:15px}
-.reset{margin:16px 0 0;color:var(--muted);font-size:14px}
-.reset .yes{color:var(--error);font-weight:600;margin:0 8px}
 .parley.contract .opts{display:none}
 @media print{.dec{break-inside:avoid}}

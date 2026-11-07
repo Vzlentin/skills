@@ -71,7 +71,7 @@ Write it at the contract, in the format of `{baseDir}/template.md`, with `status
 
 ## Page
 
-Design the page for its topic, as `artifacts` says. Lay out, in order: what is true today, concretely; the options; then what he needs to answer, each decision next to the view that explains it.
+`artifacts` owns the page: its layout, colors, check and bar. parley adds the decisions. Lay out, in order: what is true today, concretely; the options; then what he needs to answer. Give each decision a `.split`: its text, its Plan line and `{{card N}}` in the main track, and the view that explains it in the side track.
 
 Write the page source in `/tmp/pages/<slug>/page.md`: an `artifacts` source with a `## Decisions` section in the format of `{baseDir}/template.md`. Until the contract, that section is the only copy of the decisions: apply each answer line there, then build again. `build.mjs` adds the parley parts:
 
@@ -79,7 +79,7 @@ Write the page source in `/tmp/pages/<slug>/page.md`: an `artifacts` source with
 - `{?3}` is a blank: the answer to decision 3, or its plan while it is open. It follows the taps. Restate an answer only with a blank, and write no decided, open or next line: it goes stale at the first tap.
 - Any control can pick: `@click="$store.parley.pick(3, 'b')"`.
 - A ` ```mermaid ` block becomes a `show-me` diagram. It needs Pele: `npm install -g pele`.
-- A live page ends with the bar: Copy gives the answer line. The share copy and a `status: contract` source have no cards to answer and no bar: build the record for the contract page.
+- A live page ends with the bar of `artifacts`: Copy gives the answer line, and Clear takes back the taps and notes. The share copy and a `status: contract` source have no cards to answer and no bar: build the record for the contract page.
 
 ```sh
 node {baseDir}/build.mjs <page.md> [out.html]   # /tmp/pages/<slug>/index.html

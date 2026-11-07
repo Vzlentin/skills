@@ -5,8 +5,8 @@
 // - `## Decisions` becomes the cards that no {{card N}} line places elsewhere.
 // - {{card 3}}, alone on its line, places card 3 there, with only its options and the reason for its plan: its view holds the rest.
 // - {?3} is a blank: the answer to decision 3, or its plan while it is open.
-// A live page ends with the bar of the way back. A source with `status: contract` and the share copy have no interactive part.
-// The page itself comes from artifacts, diagrams from show-me.
+// A source with `status: contract` and the share copy have no interactive part.
+// The page itself comes from artifacts, with the bar of the way back on a live page, and diagrams from show-me.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -116,7 +116,6 @@ ${readFileSync(join(here, "cards.js"), "utf8")}
 
 const html = `<div class="parley ${status}">
 ${pageHtml}
-${live ? bar() : ""}
 </div>
 <style>${readFileSync(join(here, "cards.css"), "utf8")}</style>
 ${live ? script() : ""}`;
@@ -302,16 +301,6 @@ function renderBlank(n) {
 	if (!decision) throw new Error(`Blank {?${n}} names no decision`);
 	const card = freshCard(decision);
 	return `<a class="blank ${blankKind(decision, card)}"${on(`:class="$store.parley.blank(${n})"`)} href="#d-${n}"${on("x-data")}><b${on(`x-text="$store.parley.shown(${n})"`)}>${escapeHtml(blankText(decision, card))}</b><sup>${n}</sup></a>`;
-}
-
-// The bar of the way back of artifacts: one row with the answer line and Copy. Clear sits above it, once there is something to clear.
-// Clear asks again in the page, not with confirm(): some hosts block confirm(), and it then does nothing.
-function bar() {
-	return `<p class="reset" x-data x-show="Object.keys($store.back.edits).length" x-cloak><a href="#" x-show="!$store.parley.clearing" @click.prevent="$store.parley.askClear()">Clear my answers</a><span x-show="$store.parley.clearing" x-cloak>Clear your answers and notes? <a href="#" class="yes" @click.prevent="$store.parley.clear()">Yes</a> <a href="#" @click.prevent="$store.parley.clearing = false">No</a></span></p>
-<div class="bar" x-data>
-  <div class="line" x-text="$store.back.text"></div>
-  <button class="primary" x-show="typeof sendPrompt === 'function'" x-cloak @click="sendPrompt($store.back.text)">Send</button><button class="primary" @click="$store.back.copy()">Copy</button>
-</div>`;
 }
 
 // ---------------------------------------------------------------- text helpers
