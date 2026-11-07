@@ -14,9 +14,9 @@ An artifact is a page that you make for the user, outside the terminal: to expla
 - Progressive disclosure: each section answers one question in its heading, gives the answer in its first line, and puts the rest behind a tap.
 - Plain language. Define each term on first use.
 - Concrete before abstract: start from what is true today.
-- You design the layout of each page for its content, and for where he will read it now: phone first when he is on his phone (the Claude app, a remote session), desktop otherwise. Both must work. On a desktop, use the width with grids, columns and side-by-side parts. Text keeps a readable measure.
+- The page uses the width of the screen it is on. On a laptop (1280 to 1728 px), text and the part that shows it sit side by side: put each view, example, code block, table or card beside the text that explains it (`.split`). On a phone, they stack in one column. Both must work.
 - Creative: build the parts that the point needs, in HTML in the source. Nothing is fixed.
-- The terminal theme: Pi's colors from Ghostty, when Ghostty is there. If not, the saved colors. The page follows the viewer's light or dark setting: terminal colors for the terminal's scheme, the light palette for the other. Use no other colors.
+- The terminal theme: Pi's colors from Ghostty, when Ghostty is there. If not, the saved colors. The page keeps these colors in each light or dark setting of the viewer. Only the share copy is light. Use no other colors.
 
 ## Build
 
@@ -27,7 +27,28 @@ node {baseDir}/render.mjs --theme                  # the theme as CSS variables,
 ```
 
 - The source: frontmatter with a `page:` slug, then Markdown and HTML. `<style>` and `<script>` blocks go in as they are.
-- The base shell gives the theme as CSS variables (`--accent`, `--text`, `--muted`, `--card`, `--line`, ...), the type, the spacing and the code style. The page is at most `--page` wide (1440 px), centered. Inside it, the page lays itself out. Optional parts: `.grid` (columns that wrap on a phone), `.card`, `.kicker` (a small label above a heading), `.lead` (the answer under it), `.pill` with `.good`, `.warn` or `.bad`, `.term` with `.s1` to `.s4` (a word in the color of a series), `.muted`, `.no-share`.
+- The base shell gives the theme as CSS variables (`--accent`, `--text`, `--muted`, `--card`, `--line`, ...), the type, the spacing, the code style and the layout. Do not write layout CSS of your own (widths, margins, columns, media queries): use the parts of the shell.
+- The layout: the page takes the width of the screen, up to 1760 px, with one left edge for every part. It has two tracks: the main track holds text at a readable measure (`--measure`, 70 ch), and the side track takes the rest of the width. Under 1080 px, it has one track.
+  - Text goes in the main track by itself.
+  - `.split` puts its first child in the main track and its second child in the side track, side by side. On a phone, the second child comes under the first. It is the part to use most: the text of a section on the left, and its view, example, code, table or card on the right.
+  - Tables, figures, code, `.grid` and `.card` outside a `.split` take the full width.
+
+  ```html
+  <div class="split">
+  <div>
+
+  ## Why the test passed
+
+  The text, in Markdown, with a blank line after each tag.
+
+  </div>
+  <div>
+  <w-trace></w-trace>
+  </div>
+  </div>
+  ```
+
+- Other parts: `.grid` (columns that wrap on a phone), `.card`, `.kicker` (a small label above a heading), `.lead` (the answer under it), `.pill` with `.good`, `.warn` or `.bad`, `.term` with `.s1` to `.s4` (a word in the color of a series), `.muted`, `.no-share`.
 - Code blocks: `diff`, and each language that highlight.js knows.
 - A local image goes into the page. A local SVG goes in as it is and takes the page colors. For a diagram, draw it with `show-me` (`mermaid.mjs --large`) and link the SVG: `![what it shows](diagram.svg)`.
 - A PDF: `<chrome> --headless=new --no-pdf-header-footer --print-to-pdf=<file.pdf> file:///tmp/pages/<slug>/share.html`. `<chrome>` is `google-chrome` or `chromium` on Linux and WSL, and `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"` on macOS.
@@ -60,10 +81,9 @@ The way back is how the user's edits come back to you: one store, `$store.back`,
 ```html
 <textarea x-data x-init="$store.back.field('reply 1', $el.value)" x-model="$store.back.values['reply 1']">Draft</textarea>
 <span x-data x-show="$store.back.changed('reply 1')">edited <a @click="$store.back.undo('reply 1')">undo</a></span>
-
-<div class="bar" x-data><div class="line" x-text="$store.back.text"></div><button class="primary" @click="$store.back.copy()">Copy</button></div>
 ```
 
+- An interactive page ends with the bar: the block, Copy, Send in a host that has `sendPrompt`, and Clear once there is an edit. The build adds it, and it shows once the page has a field or a part.
 - `$store.back.text` is the block that Copy gives: the lines of each part, then each changed field as `key:` and its text. With no part, it starts with `[slug]`.
 - A page that builds its own lines adds a part: `Alpine.store("back").part(() => "a line")`, in an `alpine:init` listener. Its fields take `{ list: false }`, so that only the part reports them.
 - A widget value goes back as a field: `<w-lags x-data x-init="$store.back.field('lag', 3)" x-model="$store.back.values['lag']"></w-lags>`.
@@ -121,9 +141,9 @@ Before you publish, run the check on the built page:
 node {baseDir}/check.mjs /tmp/pages/<slug>/index.html
 ```
 
-It takes screenshots at 1280 and 390 px, in light and dark, into `/tmp/pages/<slug>/check/`. It lists the errors of the scripts, the `<w-…>` tags that did not start, and the players that do not move. Its exit code is 1 when it finds a problem. It needs Chrome, Chromium or Edge: set `CHROME=<path>` when it does not find one.
+It takes screenshots at 390, 1280 and 1728 px into `/tmp/pages/<slug>/check/`. It lists the errors of the scripts, the `<w-…>` tags that did not start, and the players that do not move. It checks the layout: one left edge, the shell's `--page` and `--measure` with two tracks at 1728 px, no text alone for more than 700 px with the side track empty at 1728 px, no sideways scroll at 390 px, and the same colors in a light and a dark setting. Its exit code is 1 when it finds a problem. It needs Chrome, Chromium or Edge: set `CHROME=<path>` when it does not find one.
 
-- Look at each screenshot. Ask: what covers the screen on the phone? Does the desktop page use the width?
+- Look at each screenshot. Ask: what covers the screen on the phone? Is the laptop screen full, with each view next to its text?
 - Open the page and use each control once.
 - One error in a script stops all the widgets of that script.
 - A script contains no `</script`: it would end the script.
@@ -145,4 +165,4 @@ When the user is at this machine, the local file works. When he is not (on his p
 
 **Local file**: open `/tmp/pages/<slug>/index.html`. On macOS: `open <file>`. On Linux: `xdg-open <file>`. On WSL: `wslview <file>`, or `explorer.exe "$(wslpath -w <file>)"`.
 
-**Claude Code**: publish the page as an Artifact. If the `artifact-capabilities` skill exists, load it first. If the account has them, keep the answers in the page database (`ArtifactData`) and use comment threads (`ArtifactComments`). Copy stays as the fallback. In an inline widget, the page shows Send (`sendPrompt`). The page meets the Artifact contract as built: one file, scripts inline, colors for both schemes. Test Copy on the first publish.
+**Claude Code**: publish the page as an Artifact. If the `artifact-capabilities` skill exists, load it first. If the account has them, keep the answers in the page database (`ArtifactData`) and use comment threads (`ArtifactComments`). Copy stays as the fallback. In an inline widget, the page shows Send (`sendPrompt`). The page meets the Artifact contract as built: one file, scripts inline, its own colors. Test Copy on the first publish.

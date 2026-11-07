@@ -11,23 +11,29 @@
   --mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
   --card:color-mix(in srgb,var(--fg) 4%,var(--bg));
   --line:color-mix(in srgb,var(--border-muted) 45%,var(--bg));
-  --measure:78ch;
-  --page:1440px;
-  --pad:clamp(16px,3.2vw,48px);
+  --measure:70ch;
+  --page:1760px;
+  --pad:clamp(16px,3vw,56px);
+  --gap:clamp(28px,3vw,56px);
   --end:40px;
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--text);font:17px/1.6 var(--sans)}
-/* the page width: a page may set --page, or lay itself out inside it */
-main{max-width:var(--page);margin:0 auto}
-main{padding:28px var(--pad) var(--end)}
+body{margin:0;background:var(--bg);color:var(--text);font:clamp(16px,14px + .25vw,18px)/1.6 var(--sans)}
+/* the page takes the width of the screen, up to --page, with one left edge for every part.
+   Two tracks: the main track holds text at a readable measure; the side track takes the rest of the width.
+   A .split puts its first child in the main track and its second child in the side track.
+   Tables, figures, code, grids, cards and widgets take both tracks. Under 1080 px, one track: a .split stacks. */
+main{max-width:var(--page);margin:0 auto;padding:28px var(--pad) var(--end);container:page/inline-size}
+.split{display:grid;grid-template-columns:minmax(0,1fr);gap:16px var(--gap);align-items:start;margin:8px 0 16px}
+.split>*>:first-child{margin-top:0}
+.split>*>:last-child{margin-bottom:0}
+@container page (min-width:1080px){.split{grid-template-columns:minmax(0,var(--measure)) minmax(0,1fr)}}
 a{color:var(--md-link)}
 code{font:.86em var(--mono);color:var(--md-code);background:var(--sunk);padding:1px 6px;border-radius:6px}
 strong,b{color:var(--fg)}
 hr{border:0;border-top:1px solid var(--line);margin:24px 0}
 
-/* type: text keeps a readable measure, tables, figures, code and grids take the width */
 :where(p,ul,ol,blockquote,h1,h2,h3,h4,dl){max-width:var(--measure)}
 h1{font-size:clamp(28px,4.2vw,42px);line-height:1.12;margin:6px 0 14px;color:var(--fg);letter-spacing:-.02em}
 h2{font-size:24px;margin:30px 0 12px;color:var(--fg);letter-spacing:-.01em}
@@ -84,19 +90,22 @@ textarea:focus,input[type=text]:focus{outline:none;border-color:var(--accent)}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--fg);color:var(--bg);font:600 14px var(--sans);padding:8px 14px;border-radius:99px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:40}
 .toast.on{opacity:1}
 [x-cloak]{display:none!important}
+/* Clear: it asks again in the page, not with confirm(), which some hosts block */
+.reset{margin:16px 0 0;color:var(--muted);font-size:14px}
+.reset a{cursor:pointer;color:var(--muted);text-decoration:none}
+.reset .yes{color:var(--error);font-weight:600;margin:0 8px}
 
 /* phone: wide figures scroll sideways (Pele sets max-width inline, so it needs !important), and the bar keeps one row */
 @media (max-width:700px){
-  body{font-size:16px}
   .fig svg{max-width:none!important}
   .bar .line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 }
 
 /* share: a light copy for other people, and for print */
-body.share .bar,body.share .toast,body.share .no-share{display:none}
+body.share .bar,body.share .reset,body.share .toast,body.share .no-share{display:none}
 @page{size:A4;margin:16mm}
 @media print{
-  .bar,.toast,.no-share{display:none}
+  .bar,.reset,.toast,.no-share{display:none}
   body{font-size:11pt}
   main{padding:0}
   .fig,table,.card,blockquote{break-inside:avoid}
@@ -108,6 +117,14 @@ body.share .bar,body.share .toast,body.share .no-share{display:none}
 <body class="{{bodyClass}}" data-page="{{slug}}" data-key="{{key}}">
 <main>
 {{body}}
+<!-- the bar of the way back: the block that Copy gives, and Send in a host that has sendPrompt.
+     It shows once the page uses the way back, with a field or a part. Clear sits above it, once a field differs from its default.
+     Without Alpine, x-cloak keeps both hidden. -->
+<p class="reset" x-data x-show="$store.back.edited" x-cloak><a href="#" x-show="!$store.back.clearing" @click.prevent="$store.back.askClear()">Clear my edits</a><span x-show="$store.back.clearing" x-cloak>Clear your edits? <a href="#" class="yes" @click.prevent="$store.back.clear()">Yes</a> <a href="#" @click.prevent="$store.back.clearing = false">No</a></span></p>
+<div class="bar" x-data x-show="$store.back.used" x-cloak>
+  <div class="line" x-text="$store.back.text"></div>
+  <button class="primary" x-show="typeof sendPrompt === 'function'" x-cloak @click="sendPrompt($store.back.text)">Send</button><button class="primary" @click="$store.back.copy()">Copy</button>
+</div>
 </main>
 <!-- the toast of Copy: empty and hidden on a page without Alpine -->
 <div class="toast" x-data :class="$store.back.toast && 'on'" x-text="$store.back.toast"></div>

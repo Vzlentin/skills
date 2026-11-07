@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Checks a built page in headless Chrome: the errors of its scripts, the w- tags that did not start,
-// the players that do not move, and screenshots at 1280 and 390 px in light and dark.
+// the players that do not move, the layout, and screenshots at 390, 1280 and 1728 px.
+// The layout: one left edge, the shell's width and two tracks on a laptop, no side track left empty for long on a laptop, no sideways scroll on a phone,
+// and the same colors in a light and in a dark setting of the viewer.
 // Usage: check.mjs <page.html | url> [out dir]
 // The screenshots go to <directory of the page>/check/ by default. CHROME=<path> picks the browser.
 // The exit code is 1 when the check finds a problem.
@@ -14,11 +16,15 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+// A phone, a small laptop, and a large laptop. The layout checks run on the large laptop.
 const SIZES = [
-	[1280, 900],
 	[390, 844],
+	[1280, 800],
+	[1728, 1117],
 ];
-const SCHEMES = ["light", "dark"];
+const LAPTOP = SIZES[2];
+// The side track may stay empty beside this much text, in CSS pixels: a part of a screen.
+const MAX_EMPTY_SIDE = 700;
 // The tallest screenshot, in CSS pixels.
 const MAX_HEIGHT = 8000;
 
@@ -35,6 +41,83 @@ const LIST_WIDGETS = `(() => {
 	visit(document);
 	return found;
 })()`;
+
+// The layout of main, in one pass. It gives { off, twoTracks, width, page, measure, empty }, or { ..., skipped } when main has no text.
+// off: the parts of the flow that start left or right of the column, or end right of it: a page with them has more than one left edge.
+//   The flow is the children of main, and of the plain blocks in it (no background, border, shadow, grid or flex).
+// twoTracks: a probe .split puts its second child right of its first. A page that sets its own --page or --measure
+//   gets one track: --measure:none makes the grid template invalid, and a narrow --page leaves main under the width of two tracks.
+// empty: the stretches where the side track is empty, taller than MAX_EMPTY_SIDE: the text runs alone there, and the width goes unused.
+//   The main track ends at the right edge of the probe's first child. Content right of it is text, an image, a control, a widget, or a box.
+const LAYOUT = `(() => {
+	const main = document.querySelector("main");
+	const style = getComputedStyle(main);
+	const box = main.getBoundingClientRect();
+	const left = box.left + parseFloat(style.paddingLeft);
+	const right = box.right - parseFloat(style.paddingRight);
+	const snippet = (element, length) => element.textContent.trim().replace(/\\s+/g, " ").slice(0, length);
+	const plain = (element) => {
+		const s = getComputedStyle(element);
+		return s.display === "block" && s.backgroundColor === "rgba(0, 0, 0, 0)" && !(parseFloat(s.borderLeftWidth) > 0) && s.boxShadow === "none" && !element.localName.includes("-");
+	};
+	const off = [];
+	const walk = (parent) => {
+		for (const element of parent.children) {
+			const s = getComputedStyle(element);
+			if (!element.getClientRects().length || element.matches(".bar,.toast,script,style") || s.position === "absolute" || s.position === "fixed") continue;
+			if (plain(element) && element.children.length && !element.matches("p,h1,h2,h3,h4,ul,ol,dl,blockquote,pre,table")) { walk(element); continue; }
+			const rect = element.getBoundingClientRect();
+			if (Math.abs(rect.left - left) > 1 || rect.right > right + 1)
+				off.push(element.localName + (element.className ? "." + String(element.className).split(" ")[0] : "") + " at " + Math.round(rect.left - left) + ".." + Math.round(rect.right - right) + " px: " + snippet(element, 40));
+		}
+	};
+	walk(main);
+
+	const probe = main.appendChild(document.createElement("div"));
+	probe.className = "split";
+	probe.append(document.createElement("div"), document.createElement("div"));
+	const [first, second] = [...probe.children].map((child) => child.getBoundingClientRect());
+	probe.remove();
+	const layout = {
+		off,
+		twoTracks: second.left > first.right,
+		width: Math.round(right - left),
+		page: style.getPropertyValue("--page").trim(),
+		measure: style.getPropertyValue("--measure").trim(),
+	};
+	if (!layout.twoTracks) return layout;
+
+	const track = first.right;
+	const top = (rect) => rect.top + scrollY;
+	const spans = [];
+	const text = [];
+	for (const element of main.querySelectorAll("*")) {
+		if (element.closest(".bar,.reset,script,style")) continue;
+		const rect = element.getBoundingClientRect();
+		if (!rect.width || !rect.height) continue;
+		const s = getComputedStyle(element);
+		const own = [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim());
+		const boxed = s.backgroundColor !== "rgba(0, 0, 0, 0)" || parseFloat(s.borderTopWidth) > 0 || s.boxShadow !== "none";
+		const drawn = element.matches("img,svg,canvas,video,input,textarea,button,select") || element.localName.includes("-");
+		if (own) text.push({ y: top(rect), text: snippet(element, 50) });
+		if (rect.right > track + 8 && (own || boxed || drawn)) spans.push([top(rect), top(rect) + rect.height]);
+	}
+	if (!text.length) return { ...layout, skipped: "main has no text to check" };
+	const start = Math.min(...text.map((item) => item.y));
+	const end = top(box) + box.height - parseFloat(style.paddingBottom);
+	spans.sort((a, b) => a[0] - b[0]);
+	const empty = [];
+	let from = start;
+	for (const [a, b] of [...spans, [end, end]]) {
+		if (a - from > ${MAX_EMPTY_SIDE}) empty.push({ from: Math.round(from), to: Math.round(a), text: text.find((item) => item.y >= from - 4)?.text ?? "" });
+		from = Math.max(from, b);
+	}
+	return { ...layout, empty };
+})()`;
+
+// The page is wider than the phone: it scrolls sideways.
+const SIDEWAYS = `document.documentElement.scrollWidth - innerWidth`;
+const BACKGROUND = `getComputedStyle(document.body).backgroundColor`;
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
@@ -67,14 +150,18 @@ try {
 
 	const shots = [];
 	let widgets;
-	for (const scheme of SCHEMES) {
-		for (const [width, height] of SIZES) {
-			await open(cdp, url, { width, height, scheme, reduced: true });
-			widgets ??= await evaluate(cdp, LIST_WIDGETS);
-			shots.push(await screenshot(cdp, join(out, `${scheme}-${width}.png`), width));
-		}
+	let sideways = 0;
+	for (const [width, height] of SIZES) {
+		await open(cdp, url, { width, height, scheme: "light", reduced: true });
+		widgets ??= await evaluate(cdp, LIST_WIDGETS);
+		if (width < 500) sideways = await evaluate(cdp, SIDEWAYS);
+		shots.push(await screenshot(cdp, join(out, `${width}.png`), width));
 	}
-	await open(cdp, url, { width: 1280, height: 900, scheme: "light", reduced: false });
+	// The light setting stays from the screenshots: the dark one must give the same colors.
+	const light = await evaluate(cdp, BACKGROUND);
+	await open(cdp, url, { width: LAPTOP[0], height: LAPTOP[1], scheme: "dark", reduced: false });
+	const dark = await evaluate(cdp, BACKGROUND);
+	const layout = await evaluate(cdp, LAYOUT);
 	const players = await checkPlayers(cdp);
 
 	console.log(`screenshots: ${shots.join(" ")}`);
@@ -84,6 +171,31 @@ try {
 	if (stopped.length) {
 		problems++;
 		console.log(`not started: ${[...new Set(stopped.map((widget) => widget.tag))].join(", ")}. Its script stopped, or no script defines it.`);
+	}
+	const { off } = layout;
+	if (off.length) {
+		problems++;
+		console.log(`off the column: ${off.length} parts at ${LAPTOP[0]} px do not start at its left edge, or end past its right edge (offsets from the edges):`);
+		for (const part of off.slice(0, 8)) console.log(`  ${part}`);
+	} else console.log("column: one left edge");
+	if (!layout.twoTracks) {
+		problems++;
+		console.log(`own layout: at ${LAPTOP[0]} px main is ${layout.width} px wide, with --page ${layout.page || "unset"} and --measure ${layout.measure || "unset"}, and a .split has one track. Remove the layout CSS of the page`);
+	} else if (layout.skipped) {
+		problems++;
+		console.log(`side track: not checked, ${layout.skipped}`);
+	} else if (layout.empty.length) {
+		problems++;
+		console.log(`empty side: at ${LAPTOP[0]} px, text runs alone for more than ${MAX_EMPTY_SIDE} px ${layout.empty.length} times. Put beside it, in a .split, the view, example, table or card that goes with it:`);
+		for (const stretch of layout.empty.slice(0, 8)) console.log(`  ${stretch.to - stretch.from} px from "${stretch.text}"`);
+	} else console.log(`side track: used, main ${layout.width} px`);
+	if (sideways > 1) {
+		problems++;
+		console.log(`sideways: at ${SIZES[0][0]} px the page is ${sideways} px wider than the screen. Give the wide part its own scroll box, or let it wrap`);
+	}
+	if (light !== dark) {
+		problems++;
+		console.log(`colors: the background is ${light} in a light setting and ${dark} in a dark one. The page keeps the terminal colors`);
 	}
 	const still = players.filter((player) => !(player.after > player.before));
 	console.log(`players: ${players.length}${players.length ? `, ${players.length - still.length} move` : ""}`);

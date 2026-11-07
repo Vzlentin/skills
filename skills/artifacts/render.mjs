@@ -11,7 +11,7 @@
 // Markdown: marked, in vendor/. Code colors: highlight.js, when the Pi install or the global npm prefix has it.
 // Colors: Pi's `system` theme computed from the Ghostty colors.
 //   Without Pi: the terminal theme (Ghostty colors, mapped by color number). Without Ghostty: saved colors.
-//   The page follows the viewer's light or dark setting: these colors for their own scheme, LIGHT or the saved colors for the other.
+//   The page keeps these colors in each light or dark setting of the viewer.
 // PAGES_NO_PI=1 renders as if Pi were not installed.
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -98,6 +98,7 @@ export async function renderPage({ slug, key = slug, title, body, share = false,
 	const vendor = (name) => readFileSync(join(here, name), "utf8");
 	const widgets = widgetFiles(body);
 	const kit = WIDGET_TAG.test(body);
+	if (/x-text="\$store\.back\.text"/.test(body)) throw new Error("The page writes its own bar of the way back. The build adds it: remove the one of the page");
 	const head = [];
 	// Alpine starts when its own script runs: the plugin and the store of the way back come first, the page last.
 	if (interactive) head.push(`<script>${vendor("vendor/alpine-persist.min.js")}</script>`, `<script>${vendor("back.js")}</script>`);
@@ -108,7 +109,7 @@ export async function renderPage({ slug, key = slug, title, body, share = false,
 		title: escapeHtml(title),
 		slug: escapeHtml(slug),
 		key: escapeHtml(key),
-		theme: share ? `:root{${pageTokens(theme.colors)}}` : themeCss(theme.colors),
+		theme: `:root{${pageTokens(theme.colors)}}`,
 		head: head.join("\n"),
 		alpine: interactive ? `<script>${vendor("vendor/alpine.min.js")}</script>` : "",
 		body,
@@ -164,7 +165,7 @@ if (import.meta.main) {
 	const flags = new Set(process.argv.slice(2).filter((arg) => arg.startsWith("--")));
 	const [sourcePath, out] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 	if (flags.has("--theme")) {
-		console.log(themeCss((await loadTheme()).colors));
+		console.log(`:root{${pageTokens((await loadTheme()).colors)}}`);
 		process.exit(0);
 	}
 	if (!sourcePath) {
@@ -276,17 +277,6 @@ async function loadTheme() {
 
 function savedColors() {
 	return JSON.parse(readFileSync(join(here, "saved-colors.json"), "utf8"));
-}
-
-// The page follows the viewer's light or dark setting: these colors for their own scheme, the light palette
-// or the saved colors for the other. A host that sets data-theme on <html> wins over the setting.
-function themeCss(colors) {
-	const dark = isDark(colors.bg);
-	const [own, other] = dark ? ["dark", "light"] : ["light", "dark"];
-	const tokens = pageTokens(dark ? terminalTokens(LIGHT) : savedColors());
-	return `:root{${pageTokens(colors)}}
-@media (prefers-color-scheme:${other}){:root:not([data-theme=${own}]){${tokens}}}
-:root[data-theme=${other}]{${tokens}}`;
 }
 
 // The tokens that the shell and pages use, the same names in both schemes, --sunk for wells and code,
