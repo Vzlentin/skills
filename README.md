@@ -6,6 +6,7 @@ Agent skills for Pi and other coding agents.
 - `show-me`: explain with the smallest view that works, and draw Mermaid diagrams to SVG.
 - `artifacts`: make HTML pages with widgets that the reader plays, share copies and PDFs.
 - `writing-pr`: write short pull request titles and bodies.
+- `chief-of-staff`: drive a long-running goal or multi-wave effort end to end with workflows runs and subagents.
 - `dia`: read and drive your Dia browser on macOS, with your logged-in sessions.
 
 ## Install
