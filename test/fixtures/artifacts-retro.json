@@ -1,0 +1,149 @@
+{
+  "slug": "artifacts-retro",
+  "status": "contract",
+  "title": "artifacts and parley: decisions as data, pages as building blocks",
+  "goal": "One file per parley holds the decisions from the first round to the contract. The chat and the page read it. Pages are HTML made of building blocks, with no Markdown conversion and no vault copy.",
+  "evidence": [
+    "/tmp/retro-2026-11-08/artifacts-findings.md",
+    "/tmp/retro-2026-11-08/tab1-chat-vs-artifact.md",
+    "python3 ~/.agents/skills/retro/scan.py (69 to 90 sessions, 10-25 to 11-07)"
+  ],
+  "decisions": [
+    {
+      "n": 1,
+      "title": "Page shape",
+      "kind": "your call",
+      "tension": "The chat rundown served the user better than the parley page, at one eighth of the output tokens.",
+      "options": [
+        { "key": "a", "label": "top table, rebuild each version from the decisions", "gains": ["the page reads on one screen"], "costs": ["a rebuild each round"] },
+        { "key": "b", "label": "top table only" },
+        { "key": "c", "label": "no change" }
+      ],
+      "plan": "a",
+      "answer": "own",
+      "label": "the cause is the Markdown base of pages: see 9 to 11",
+      "words": ["isnt there a better solution here ? does our problem come from the markdown base of pages ? I don't care for the pages being in the vault actually. seems to me that we are double generating everytime, bloating my obsidian, bringing in a new skill each time, and constraining artifacts to the markdown conversion"]
+    },
+    {
+      "n": 2,
+      "title": "What widgets are for",
+      "kind": "your call",
+      "options": [
+        { "key": "a", "label": "a widget draws a model, check.mjs fails on CDN imports and non-kit widgets" },
+        { "key": "b", "label": "only the check.mjs rule" },
+        { "key": "c", "label": "no change" }
+      ],
+      "plan": "a",
+      "answer": "own",
+      "label": "building blocks: a kit of parts that pages combine (split, card, grid, diagram, stepper, timeline, decision); a custom widget only for a model no block can draw",
+      "words": ["building blocks"]
+    },
+    {
+      "n": 3,
+      "title": "Gains and costs of a placed card",
+      "kind": "your call",
+      "tension": "build.mjs drops the + and - lines of a placed card without a word: 26 lines in stack-070.",
+      "options": [
+        { "key": "a", "label": "keep the design, build.mjs warns" },
+        { "key": "b", "label": "show them on placed cards under why" }
+      ],
+      "plan": "a",
+      "answer": "own",
+      "label": "flexible: a card shows the gains and costs when the author writes them, under why, placed or not; nothing is dropped",
+      "words": ["I want it to be flexible and helpful"]
+    },
+    {
+      "n": 4,
+      "title": "A Use plans button",
+      "kind": "your call",
+      "options": [
+        { "key": "a", "label": "no button" },
+        { "key": "b", "label": "a button that fills each open call with its plan" }
+      ],
+      "plan": "a",
+      "answer": "a",
+      "words": ["bruh I don't care about this"]
+    },
+    {
+      "n": 5,
+      "title": "parley layout against check.mjs",
+      "kind": "my call",
+      "options": [
+        { "key": "a", "label": "card in the side track, keep the check", "gains": ["parley/SKILL.md:74 breaks the empty-side check; one round cost 5.4k tokens"] },
+        { "key": "b", "label": "relax the check" }
+      ],
+      "plan": "a",
+      "answer": "own",
+      "label": "absorbed by 11: the decision block owns its layout, and the check stays"
+    },
+    {
+      "n": 6,
+      "title": "Radius call shapes",
+      "kind": "my call",
+      "options": [
+        { "key": "a", "label": "the artifacts skill gives the full call shapes and one publish-and-verify command", "gains": ["14 failed Radius calls in 11 sessions, last 11-07"] }
+      ],
+      "plan": "a",
+      "answer": "a"
+    },
+    {
+      "n": 7,
+      "title": "Screenshots",
+      "kind": "my call",
+      "options": [
+        { "key": "a", "label": "screenshots only through check.mjs, read only the paths it prints", "gains": ["56 reads of missing files in 19 sessions"] }
+      ],
+      "plan": "a",
+      "answer": "a"
+    },
+    {
+      "n": 8,
+      "title": "Delivery",
+      "kind": "my call",
+      "options": [
+        { "key": "a", "label": "two steps: small fixes (3, 6, 7) ship now on top of skills PR #3; the redesign (9 to 11) runs as a campaign from this contract" }
+      ],
+      "plan": "a",
+      "answer": "a"
+    },
+    {
+      "n": 9,
+      "title": "Source of truth for a parley",
+      "kind": "your call",
+      "options": [
+        { "key": "a", "label": "a decisions JSON file, checked by a schema at each write; the chat summary and the page read it", "gains": ["each decision written once", "a page rebuild costs no tokens", "one clear error in place of 11 parser failures"] },
+        { "key": "b", "label": "keep Markdown with a simpler syntax" }
+      ],
+      "plan": "a",
+      "answer": "a",
+      "words": ["[artifacts-retro] 1a 2b 3a ok"]
+    },
+    {
+      "n": 10,
+      "title": "Where the contract lives",
+      "kind": "your call",
+      "options": [
+        { "key": "a", "label": "next to the work: repository docs or the goal file" },
+        { "key": "b", "label": "the state folder, ~/.local/state/parley/<slug>.json", "costs": ["no Git history, no sync between machines"] },
+        { "key": "c", "label": "the vault, as today" }
+      ],
+      "plan": "a",
+      "answer": "b",
+      "label": "one file with 9: the file of the first round becomes the contract when status is contract; no record, no copy; campaign goals cite its path; the 26 vault records stay, no migration",
+      "words": ["[artifacts-retro] 1a 2b 3a ok", "1 and 2 shouldnt they be in the same file ?", "[artifacts-retro] ok"]
+    },
+    {
+      "n": 11,
+      "title": "Page format of artifacts",
+      "kind": "your call",
+      "options": [
+        { "key": "a", "label": "HTML of building-block tags, no Markdown conversion; render.mjs shrinks to the shell and the theme; the page is a disposable output in /tmp/pages/<slug>/", "costs": ["prose costs about 1.3 times the tokens of Markdown"] },
+        { "key": "b", "label": "blocks as tags, Markdown only inside text blocks" }
+      ],
+      "plan": "a",
+      "answer": "a",
+      "words": ["[artifacts-retro] 1a 2b 3a ok"]
+    }
+  ],
+  "design_sense": "One source of truth with a schema at ingress in place of a Markdown parser; blocks that compose in place of one-off widgets; the Markdown conversion, the decision parser and the vault copies go."
+}

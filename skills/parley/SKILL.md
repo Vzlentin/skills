@@ -17,7 +17,7 @@ The user takes many decisions each day, on many systems. Brief him like an execu
 - Each call: your plan, and what each option costs, in outcomes and numbers, not code.
 - Plain language. Define each term on first use.
 - At most 5 open calls at a time. The others wait their turn.
-- Each turn in the chat, give the state: decided, open, next.
+- Each turn in the chat, give the state: the output of `decisions.mjs` (see Decisions file), then what comes next.
 - Each round builds on the last one. When a view you already showed changes, show that same view again, updated, with the change marked.
 - A side topic gets one line at the end.
 - End with one thing to answer.
@@ -26,7 +26,7 @@ Use `show-me` for the views. Make a page only when the user asks for it: load `a
 
 ## Rules
 
-- Do not make the user repeat himself. Read the earlier records and the memory first, when they exist.
+- Do not make the user repeat himself. Read the decisions files, the earlier records and the memory first, when they exist.
 - Get the facts yourself. Ask the user only what only he can answer.
 
 ## Design sense
@@ -45,12 +45,12 @@ Life also shapes by deletion: a hand gets its fingers when the cells between the
 
 ## Flow
 
-1. Get the facts. Search for earlier records on the topic where records go (see Record). A settled decision stays settled until the user opens it again.
-2. Sort the calls. A your call is taste, priority, or how it must work for the user: it starts empty. A my call is a choice that evidence can settle: it starts set to your plan, with one line of evidence.
-3. Ask in the chat, with the answer line that takes all your plans.
-4. Apply each answer line. For `?N`, explain N first.
+1. Get the facts. Search `~/.local/state/parley/` and the earlier records on the topic. A settled decision stays settled until the user opens it again.
+2. Sort the calls, and write them in the decisions file. A your call is taste, priority, or how it must work for the user: it has no answer until the user gives one. A my call is a choice that evidence can settle: its plan is yours, and one line of evidence goes in the `gains` of its plan option. A call that waits its turn goes into the file in the round that asks it.
+3. Ask in the chat with the output of `decisions.mjs`: its last line is the answer line that takes all your plans.
+4. Apply each answer line to the file. For `?N`, explain N first.
 5. When no call is open, the answers are the contract. Read back first only when an answer is in the user's own words or leaves your plan: the terms in your own words, with each answer, for his `ok` or his correction.
-6. Write the record. Goal files come after it, and they cite it.
+6. Set the contract in the file. Goal files come after it, and they cite its path.
 
 ## Answer line
 
@@ -62,24 +62,82 @@ Life also shapes by deletion: a hand gets its fingers when the cells between the
 - `?5` asks you to explain 5 first.
 - `ok` accepts each my call that the line does not name, or a read-back.
 
-## Record
+## Decisions file
 
-Write it at the contract, in the format of `{baseDir}/template.md`, with `status: contract` and plain words in place of each blank. If you have a notes or vault skill, the record goes there: load that skill. If not, it goes in `/tmp/pages/<slug>/record.md`.
+Each parley has one file, `~/.local/state/parley/<slug>.json`. It is the source of truth from Round 1 to the contract, and the only copy of the decisions. Write each decision once, in the file. Write the file yourself, and create the folder when it is missing.
 
-- Below the options of each decision: `Answer: <letter>`, or `Answer: own · <short label>`. Under it, quote the user's exact words, never a summary: `> "words"`. Decision numbers never change.
-- The last line: `Design sense:` and what the lenses changed in your plan, or `none`.
+After each write, run the command below. It checks the file, and prints one error line when the file is wrong. Its output is the state of the turn: one line for each decision, then the answer line that takes all your plans. Show it in the chat, and do not type the decisions again.
+
+```sh
+node {baseDir}/decisions.mjs <slug>
+```
+
+- Apply each answer line to the file. A pick sets `answer` to its letter. An own answer sets `answer: "own"` and a short `label`. Put the user's exact words in `words`, never a summary.
+- At the contract, each decision has an answer. Set `status: "contract"` and `design_sense`: what the lenses changed in your plan, or `none`. The command then prints the path of the file in place of the answer line. Goals cite that path.
+- Write no record copy, in the vault or in another place. The earlier records stay as they are.
+- Decision numbers never change.
+
+The fields. A key that is not in this list is an error.
+
+- Top level: `slug` (lowercase words with hyphens, the file name), `status` (`"open"` or `"contract"`), `title`, `goal` and `decisions`. Optional: `evidence` (a list of strings) and `design_sense`.
+- A decision: `n`, `title`, `kind` (`"your call"` or `"my call"`), `options` and `plan` (the key of an option). Optional: `tension`, `answer` (the key of an option, or `"own"`), `label` (required with `"own"`) and `words` (a list of strings).
+- An option: `key` (one lowercase letter) and `label`. Optional: `gains` and `costs` (lists of strings).
+- Strings are plain text: no Markdown, no backtick and no `**`. Only `words` keeps them, as the user wrote them. No string or list is empty: leave out an optional key in its place.
+
+An open file in Round 1, with one your call and one my call:
+
+```json
+{
+  "slug": "install-lock",
+  "status": "open",
+  "title": "install lock: who owns it",
+  "goal": "One lock keeps two installs from writing the same folder at the same time.",
+  "decisions": [
+    {
+      "n": 1,
+      "title": "Lock owner",
+      "kind": "your call",
+      "tension": "Each package installs alone, but two installs write the same folder.",
+      "options": [
+        { "key": "a", "label": "harness owns the lock", "gains": ["one lock for all packages"], "costs": ["harness must ship first"] },
+        { "key": "b", "label": "each package has its own lock", "costs": ["two installs can race"] }
+      ],
+      "plan": "a"
+    },
+    {
+      "n": 2,
+      "title": "Stale lock",
+      "kind": "my call",
+      "options": [
+        { "key": "a", "label": "a dead PID is taken over", "gains": ["a spike: after kill -9 on the holder, the next install took the lock"] },
+        { "key": "b", "label": "a timeout" }
+      ],
+      "plan": "a"
+    }
+  ]
+}
+```
+
+The command prints:
+
+```text
+install-lock · open · install lock: who owns it
+1 · Lock owner · your call · open · plan a · harness owns the lock
+2 · Stale lock · my call · open · plan a · a dead PID is taken over
+[install-lock] 1a ok
+```
 
 ## Page
 
 `artifacts` owns the page: its layout, colors, check and bar. parley adds the decisions. Lay out, in order: what is true today, concretely; the options; then what he needs to answer. Give each decision a `.split`: its text, its Plan line and `{{card N}}` in the main track, and the view that explains it in the side track.
 
-Write the page source in `/tmp/pages/<slug>/page.md`: an `artifacts` source with a `## Decisions` section in the format of `{baseDir}/template.md`. Until the contract, that section is the only copy of the decisions: apply each answer line there, then build again. `build.mjs` adds the parley parts:
+Write the page source in `/tmp/pages/<slug>/page.md`: an `artifacts` source with a `## Decisions` section that copies its decisions from the decisions file, in the format of `{baseDir}/template.md`. `build.mjs` adds the parley parts:
 
 - `## Decisions` becomes the cards: an open your call shows its options as buttons; a my call or a decided call folds to one line. `{{card 3}}`, alone on its line, places card 3 next to its view. A placed card shows its option labels and its Plan line. Its gains (`+`) and costs (`-`) go under `why` when you write them. It does not show its tension: its view holds it.
 - `{?3}` is a blank: the answer to decision 3, or its plan while it is open. It follows the taps. Restate an answer only with a blank, and write no decided, open or next line: it goes stale at the first tap.
 - Any control can pick: `@click="$store.parley.pick(3, 'b')"`.
 - A ` ```mermaid ` block becomes a `show-me` diagram. It needs Pele: `npm install -g pele`.
-- A live page ends with the bar of `artifacts`: Copy gives the answer line, and Clear takes back the taps and notes. The share copy and a `status: contract` source have no cards to answer and no bar: build the record for the contract page.
+- A live page ends with the bar of `artifacts`: Copy gives the answer line, and Clear takes back the taps and notes. The share copy and a `status: contract` source have no cards to answer and no bar.
 
 ```sh
 node {baseDir}/build.mjs <page.md> [out.html]   # /tmp/pages/<slug>/index.html
