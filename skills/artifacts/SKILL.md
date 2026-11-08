@@ -141,9 +141,16 @@ Before you publish, run the check on the built page:
 node {baseDir}/check.mjs /tmp/pages/<slug>/index.html
 ```
 
-It takes screenshots at 390, 1280 and 1728 px into `/tmp/pages/<slug>/check/`. It lists the errors of the scripts, the `<w-…>` tags that did not start, and the players that do not move. It checks the layout: one left edge, the shell's `--page` and `--measure` with two tracks at 1728 px, no text alone for more than 700 px with the side track empty at 1728 px, no sideways scroll at 390 px, and the same colors in a light and a dark setting. Its exit code is 1 when it finds a problem. It needs Chrome, Chromium or Edge: set `CHROME=<path>` when it does not find one.
+It takes screenshots at 390, 1280 and 1728 px, and prints their paths on one line:
 
-- Look at each screenshot. Ask: what covers the screen on the phone? Is the laptop screen full, with each view next to its text?
+```
+screenshots: /tmp/pages/<slug>/check/390.png /tmp/pages/<slug>/check/1280.png /tmp/pages/<slug>/check/1728.png
+```
+
+It lists the errors of the scripts, the `<w-…>` tags that did not start, and the players that do not move. It checks the layout: one left edge, the shell's `--page` and `--measure` with two tracks at 1728 px, no text alone for more than 700 px with the side track empty at 1728 px, no sideways scroll at 390 px, and the same colors in a light and a dark setting. Its exit code is 1 when it finds a problem. It needs Chrome, Chromium or Edge: set `CHROME=<path>` when it does not find one.
+
+- Take screenshots only with `check.mjs`, and read only the paths on its `screenshots:` line. Never run headless Chrome with `--screenshot`, and never guess a file name. When the line is missing, fix the error and run the check again.
+- Look at each screenshot on that line. Ask: what covers the screen on the phone? Is the laptop screen full, with each view next to its text?
 - Open the page and use each control once.
 - One error in a script stops all the widgets of that script.
 - A script contains no `</script`: it would end the script.
@@ -152,17 +159,46 @@ It takes screenshots at 390, 1280 and 1728 px into `/tmp/pages/<slug>/check/`. I
 
 When the user is at this machine, the local file works. When he is not (on his phone, in a remote session), the host must give him a link: Radius when its tools (`artifacts_create`, ...) are there, else the Claude Code Artifact.
 
-**Radius**:
+### Radius
 
-- Create the artifact once: `artifacts_create` with `content`, `content_type: "text/html"`, `title`, `visibility: "private"` and a `note`.
-- For each new version, use `artifacts_versions_publish` on the same slug, with a note that says what changed.
+- `mcp__radius__artifacts_create({ title, content, content_type: "text/html", visibility: "private", note })` creates the artifact once. It returns `structuredContent.artifact`. Its `id` is the `slug` of each later call, and it is not the `<slug>` of `/tmp/pages/<slug>/`. Its `canonical_url` is the link to give the user.
+- `mcp__radius__artifacts_versions_publish({ slug, content, content_type: "text/html", note })` adds a version. The note says what changed. It returns the same `artifact` object.
+- `mcp__radius__artifacts_files_download({ slug, version: "latest", path: "index.html" })` returns `structuredContent.url`, a presigned URL that expires in 10 minutes. The URL is a credential: do not print or log it.
 - The title cannot change after the create. Name the topic, not the state.
-- A page with Alpine or widgets is larger than one tool output (50 KB). In codemode, read it as base64 in parts of 40 KB, then decode it with `decodeURIComponent(escape(atob(b64)))`.
-- After each publish, read it back: `artifacts_versions_read` (`latest`), then `artifacts_files_download`, `curl` the URL and `cmp` the result with the local file.
 - Never publish while an edit runs.
 - Radius keeps an artifact 90 days after its last publish.
 - If the Radius tools fail, or the user cannot open the link (a client VPN can block it), use another host.
 
-**Local file**: open `/tmp/pages/<slug>/index.html`. On macOS: `open <file>`. On Linux: `xdg-open <file>`. On WSL: `wslview <file>`, or `explorer.exe "$(wslpath -w <file>)"`.
+Publish each version with this `codemode` script. A page with Alpine or widgets is larger than one tool output (50 KB), so the script reads it in parts. Then it reads the page back from Radius and compares it with the local file. It returns the artifact id, the link to give the user, and `same` or `DIFFERENT`. When the download fails, the script stops with the `curl` error.
 
-**Claude Code**: publish the page as an Artifact. If the `artifact-capabilities` skill exists, load it first. If the account has them, keep the answers in the page database (`ArtifactData`) and use comment threads (`ArtifactComments`). Copy stays as the fallback. In an inline widget, the page shows Send (`sendPrompt`). The page meets the Artifact contract as built: one file, scripts inline, its own colors. Test Copy on the first publish.
+```js
+const dir = "/tmp/pages/<slug>", file = `${dir}/index.html`;
+const run = async (command) => {
+	const { exitCode, output } = await tools.bash({ command, timeout: 60 });
+	if (exitCode !== 0) throw new Error(output);
+	return output.trim();
+};
+const size = Number(await run(`wc -c < ${file}`));
+// 30000 bytes give 40 KB of base64, and a multiple of 3 lets the parts join.
+let b64 = "";
+for (let at = 0; at < size; at += 30000) {
+	b64 += await run(`node -e 'const [, file, at] = process.argv; process.stdout.write(require("fs").readFileSync(file).subarray(+at, +at + 30000).toString("base64"))' ${file} ${at}`);
+}
+const content = decodeURIComponent(escape(atob(b64)));
+const { artifact } = (await tools.mcp__radius__artifacts_versions_publish({ slug: "<artifact id>", content, content_type: "text/html", note: "<what changed>" })).structuredContent;
+const slug = artifact.id;
+const { url } = (await tools.mcp__radius__artifacts_files_download({ slug, version: "latest", path: "index.html" })).structuredContent;
+const check = await run(`curl -fsSL '${url}' -o ${dir}/remote.html && { cmp -s ${file} ${dir}/remote.html && echo same || echo DIFFERENT; }`);
+return { slug, link: artifact.canonical_url, check };
+```
+
+- For the first version, replace the publish call with `tools.mcp__radius__artifacts_create({ title: "<topic>", content, content_type: "text/html", visibility: "private", note: "<note>" })`.
+- The `codemode` sandbox has no `TextEncoder`, `TextDecoder` or `URL`. File work stays in bash or node, and `codemode` makes only the Radius calls.
+
+### Local file
+
+Open `/tmp/pages/<slug>/index.html`. On macOS: `open <file>`. On Linux: `xdg-open <file>`. On WSL: `wslview <file>`, or `explorer.exe "$(wslpath -w <file>)"`.
+
+### Claude Code
+
+Publish the page as an Artifact. If the `artifact-capabilities` skill exists, load it first. If the account has them, keep the answers in the page database (`ArtifactData`) and use comment threads (`ArtifactComments`). Copy stays as the fallback. In an inline widget, the page shows Send (`sendPrompt`). The page meets the Artifact contract as built: one file, scripts inline, its own colors. Test Copy on the first publish.

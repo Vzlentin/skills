@@ -3,7 +3,8 @@
 // with a `## Decisions` section in the format of template.md. The record is the same format.
 // Usage: build.mjs [--share] <page.md> [out.html]
 // - `## Decisions` becomes the cards that no {{card N}} line places elsewhere.
-// - {{card 3}}, alone on its line, places card 3 there, with only its options and the reason for its plan: its view holds the rest.
+// - {{card 3}}, alone on its line, places card 3 there, without its tension: its view holds it.
+//   The reason for its plan stays in view, and the gains and costs of its options go behind a tap.
 // - {?3} is a blank: the answer to decision 3, or its plan while it is open.
 // A source with `status: contract` and the share copy have no interactive part.
 // The page itself comes from artifacts, with the bar of the way back on a live page, and diagrams from show-me.
@@ -265,10 +266,10 @@ function renderOption(decision, option) {
 	return `<button class="opt${selected ? " sel" : ""}"${binding}><b class="key">${option.key}</b> ${inline(option.label)}${badge}</button>`;
 }
 
-// The gains and costs of each option, and the reason for the plan, behind a tap. A placed card shows only the reason.
+// The gains and costs of each option, and the reason for the plan, behind a tap.
+// A placed card keeps the reason in view, next to the view that explains it: only the gains and costs go behind the tap.
 function renderWhy(decision) {
 	const why = decision.why.trim() ? block(decision.why) : "";
-	if (placed.has(decision.n)) return why && `<div class="reason">${why}</div>`;
 	const options = decision.options
 		.filter((option) => option.gains.length || option.costs.length)
 		.map((option) => {
@@ -277,7 +278,9 @@ function renderWhy(decision) {
 			return `<div class="o"><span class="olabel"><b class="key">${option.key}</b> ${inline(option.label)}</span>${gains}${costs}</div>`;
 		})
 		.join("");
-	return options || why ? `<details class="why"${share ? " open" : ""}><summary>why</summary>${options}${why}</details>` : "";
+	const tap = (inside) => inside && `<details class="why"${share ? " open" : ""}><summary>why</summary>${inside}</details>`;
+	if (placed.has(decision.n)) return `${why && `<div class="reason">${why}</div>`}${tap(options)}`;
+	return tap(`${options}${why}`);
 }
 
 // Two small links: a note opens its field, and "explain first" asks for ?N.

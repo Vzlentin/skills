@@ -75,7 +75,7 @@ Write it at the contract, in the format of `{baseDir}/template.md`, with `status
 
 Write the page source in `/tmp/pages/<slug>/page.md`: an `artifacts` source with a `## Decisions` section in the format of `{baseDir}/template.md`. Until the contract, that section is the only copy of the decisions: apply each answer line there, then build again. `build.mjs` adds the parley parts:
 
-- `## Decisions` becomes the cards: an open your call shows its options as buttons; a my call or a decided call folds to one line. `{{card 3}}`, alone on its line, places card 3 next to its view. A placed card carries only its option labels and the Plan line; its view holds the reasons.
+- `## Decisions` becomes the cards: an open your call shows its options as buttons; a my call or a decided call folds to one line. `{{card 3}}`, alone on its line, places card 3 next to its view. A placed card shows its option labels and its Plan line. Its gains (`+`) and costs (`-`) go under `why` when you write them. It does not show its tension: its view holds it.
 - `{?3}` is a blank: the answer to decision 3, or its plan while it is open. It follows the taps. Restate an answer only with a blank, and write no decided, open or next line: it goes stale at the first tap.
 - Any control can pick: `@click="$store.parley.pick(3, 'b')"`.
 - A ` ```mermaid ` block becomes a `show-me` diagram. It needs Pele: `npm install -g pele`.
