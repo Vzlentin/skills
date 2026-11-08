@@ -67,6 +67,22 @@ img{max-width:100%;height:auto;border-radius:8px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px 28px;align-items:start}
 .grid>*>:first-child{margin-top:0}
+/* a stepper: ordered steps, all in view, with li.done and li.now. A timeline: events in time order, each li starts with a <time>.
+   Both keep the left edge of the column: the marks sit in the padding of each li, on one line from top to bottom. */
+ol.stepper,ol.timeline{list-style:none;padding:0;margin:8px 0 16px}
+ol.stepper{counter-reset:step}
+ol.stepper>li,ol.timeline>li{position:relative;margin:0;padding:0 0 14px 40px}
+:is(ol.stepper,ol.timeline)>li:last-child{padding-bottom:0}
+ol.stepper>li{counter-increment:step}
+ol.stepper>li::before{content:counter(step);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:600 13px/1 var(--mono);color:var(--muted);background:var(--sunk);border:1px solid var(--border-muted)}
+ol.stepper>li.done{color:var(--muted)}
+ol.stepper>li.done::before{content:"\2713";color:var(--bg);background:var(--success);border-color:var(--success)}
+ol.stepper>li.now{color:var(--fg)}
+ol.stepper>li.now::before{color:var(--bg);background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 25%,var(--bg))}
+ol.timeline>li::before{content:"";position:absolute;left:9px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--accent)}
+ol.timeline>li>time:first-child{display:block;font:600 12px/1.6 var(--mono);color:var(--muted)}
+:is(ol.stepper,ol.timeline)>li:not(:last-child)::after{content:"";position:absolute;left:13px;top:31px;bottom:3px;border-left:2px solid var(--border-muted)}
+ol.timeline>li:not(:last-child)::after{top:18px;bottom:-2px}
 .muted{color:var(--muted)}
 /* hierarchy: a kicker above a heading, a lead line under it, and pills for a state */
 .kicker{font:600 12px var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:36px 0 4px}

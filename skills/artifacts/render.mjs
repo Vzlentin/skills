@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 // Builds one self-contained HTML page: the theme, the base shell, Alpine and the widget kit when the page uses them.
-// Usage: render.mjs [--share] <source.md> [out.html]
+// Usage: render.mjs [--share] <page.html> [out.html]
 //        render.mjs --theme
-// The page goes to /tmp/pages/<slug>/index.html by default: build output stays out of the source folder.
+// The source is the HTML of <main>, with no frontmatter. The slug is the name of its folder, and the title is the text of its first <h1>.
+// The page goes to /tmp/pages/<slug>/index.html by default, or share.html with --share.
 // --share: a light copy for other people and for print. --theme: the colors as CSS variables.
-// Other scripts import createMarkdown() and renderPage() from this file.
+// The HTML goes into the shell as it is, except <diagram>: renderPage() puts the image of its src in the page.
 // A page gets Alpine when its body has an Alpine attribute, and Lit with kit.js when its body has a <w-…> tag.
 // Each <w-name> tag with a widgets/w-name.js file gets that file, and the files that its own tags name.
 //
+// Other scripts import createMarkdown() and renderPage() from this file. The command converts no Markdown.
 // Markdown: marked, in vendor/. Code colors: highlight.js, when the Pi install or the global npm prefix has it.
 // Colors: Pi's `system` theme computed from the Ghostty colors.
 //   Without Pi: the terminal theme (Ghostty colors, mapped by color number). Without Ghostty: saved colors.
@@ -17,7 +19,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { dirname, extname, join, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { Marked, Renderer } from "./vendor/marked.esm.js";
 
@@ -50,31 +52,28 @@ const IMAGE_TYPES = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image
 const ALPINE_ATTRIBUTE = /\s(x-[a-z][\w:.-]*|@[a-z][\w:.-]*|:[a-z][\w-]*)="/;
 // A widget tag with a plain "<". In a code block the "<" is escaped, so a code sample does not count.
 const WIDGET_TAG = /<(w-[a-z][\w-]*)/;
+// The one form of the diagram block: lowercase attribute names, double-quoted values. Any other <diagram or </diagram> is an error.
+const DIAGRAM = /<diagram((?:\s+[a-z-]+="[^"]*")*)\s*>\s*<\/diagram>/g;
+// The named character references of HTML, from https://html.spec.whatwg.org/entities.json.
+// A name with no semicolon is a legacy name: HTML also reads it with no semicolon.
+const ENTITIES = JSON.parse(readFileSync(join(here, "vendor/entities.json"), "utf8"));
+
+// An error in the source: the command prints its message on one line.
+// A class is not hoisted, and the command below runs when the file loads: it must come before the command.
+class SourceError extends Error {}
 
 const pi = process.env.PAGES_NO_PI === "1" ? undefined : piInstall();
-const npmModules = globalModules();
-const moduleDirs = [pi?.modules, npmModules].filter(Boolean);
-const hljsDir = findModule("highlight.js");
-const hljs = hljsDir ? createRequire(import.meta.url)(hljsDir) : undefined;
-
-// The global npm folder. Without npm, the folder next to this Node, as the Node install puts it.
-function globalModules() {
-	try {
-		return execFileSync("npm", ["root", "-g"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-	} catch {
-		return join(dirname(dirname(process.execPath)), "lib/node_modules");
-	}
-}
 
 // base: the directory that local images resolve from, the directory of the source.
 // code: a renderer for a code block. It returns HTML, or undefined to leave the block to this file.
 // extensions: marked extensions, for the syntax of a script that builds on this file.
 export function createMarkdown({ base, code, extensions = [] }) {
+	const hljs = loadHighlight();
 	const md = new Marked({ gfm: true });
 	md.use({
 		extensions: [WIKILINK, ...extensions],
 		renderer: {
-			code: (token) => code?.(token) ?? renderCode(token),
+			code: (token) => code?.(token) ?? renderCode(token, hljs),
 			heading: renderHeading,
 			image: (token) => renderImage(token, base),
 			paragraph: renderParagraph,
@@ -92,13 +91,15 @@ export function escapeHtml(text) {
 }
 
 // body is HTML. key: the name of the state that the browser keeps for the page. Another key starts from the defaults.
-export async function renderPage({ slug, key = slug, title, body, share = false, out }) {
+// base: the directory that the src of a <diagram> resolves from.
+export async function renderPage({ slug, key = slug, title, body: source, share = false, out, base = process.cwd() }) {
+	const body = drawBlocks(source, base);
 	const theme = share ? { source: "light", colors: terminalTokens(LIGHT) } : await loadTheme();
 	const interactive = ALPINE_ATTRIBUTE.test(body);
 	const vendor = (name) => readFileSync(join(here, name), "utf8");
 	const widgets = widgetFiles(body);
 	const kit = WIDGET_TAG.test(body);
-	if (/x-text="\$store\.back\.text"/.test(body)) throw new Error("The page writes its own bar of the way back. The build adds it: remove the one of the page");
+	if (/x-text="\$store\.back\.text"/.test(body)) throw new SourceError("The page writes its own bar of the way back. The build adds it: remove the one of the page");
 	const head = [];
 	// Alpine starts when its own script runs: the plugin and the store of the way back come first, the page last.
 	if (interactive) head.push(`<script>${vendor("vendor/alpine-persist.min.js")}</script>`, `<script>${vendor("back.js")}</script>`);
@@ -124,6 +125,53 @@ export async function renderPage({ slug, key = slug, title, body, share = false,
 	mkdirSync(dirname(target), { recursive: true });
 	writeFileSync(target, page);
 	return { target, bytes: page.length, colors: theme.source, interactive, kit, widgets: [...widgets.keys()] };
+}
+
+// <diagram src="flow.svg" alt="what it shows"></diagram> becomes the image of src, as localImage() puts it in the page.
+function drawBlocks(body, base) {
+	const oneLine = (text) => text.replace(/\s+/g, " ");
+	const stray = body.replace(DIAGRAM, "").match(/<\/?diagram\b[^>]{0,80}>?/i);
+	if (stray) throw new SourceError(`Bad diagram tag: ${oneLine(stray[0])}. Write <diagram src="file.svg" alt="what it shows"></diagram>`);
+	return body.replace(DIAGRAM, (all, attributes) => {
+		const { src, alt = "" } = Object.fromEntries([...attributes.matchAll(/([a-z-]+)="([^"]*)"/g)].map(([, name, value]) => [name, decodeEntities(value)]));
+		if (!src) throw new SourceError(`A diagram needs a src: ${oneLine(all)}`);
+		return localImage(src, alt, base);
+	});
+}
+
+// A local SVG goes into the page as it is, so it takes the page colors. Other local images become data URLs.
+function localImage(src, text, base) {
+	const path = resolve(base, src.replace(/^~(?=\/)/, homedir()));
+	const type = extname(path).toLowerCase();
+	if (type !== ".svg" && !IMAGE_TYPES[type]) throw new SourceError(`Unknown image type: ${src}`);
+	if (!existsSync(path)) throw new SourceError(`${src}: no file at ${path}`);
+	if (type === ".svg") return `<figure class="fig" role="img" aria-label="${escapeHtml(text)}">${readFileSync(path, "utf8")}</figure>`;
+	return `<img src="data:${IMAGE_TYPES[type]};base64,${readFileSync(path).toString("base64")}" alt="${escapeHtml(text)}">`;
+}
+
+// The text of the first <h1>, with its tags removed.
+function pageTitle(html) {
+	const heading = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
+	if (!heading) throw new SourceError("The page needs an <h1>: its text is the title");
+	const title = decodeEntities(heading[1].replace(/<[^>]*>/g, "")).replace(/\s+/g, " ").trim();
+	if (!title) throw new SourceError("The <h1> of the page has no text: its text is the title");
+	return title;
+}
+
+// The named references as HTML reads them in text, and the numeric references with a semicolon.
+// A name that is not in the table gives the longest legacy name that starts it: &notit; is ¬it;.
+function decodeEntities(text) {
+	return text.replace(/&(?:([a-z][a-z0-9]*;?)|#(\d+);|#x([0-9a-f]+);)/gi, (all, name, decimal, hex) => {
+		if (name) {
+			for (let end = name.length; end > 1; end--) {
+				const known = name.slice(0, end);
+				if (Object.hasOwn(ENTITIES, known)) return ENTITIES[known] + name.slice(end);
+			}
+			return all;
+		}
+		const code = decimal ? Number(decimal) : parseInt(hex, 16);
+		return code <= 0x10ffff ? String.fromCodePoint(code) : all;
+	});
 }
 
 // The widgets/ files that the tags of the body name, and the files that their own tags name.
@@ -169,15 +217,19 @@ if (import.meta.main) {
 		process.exit(0);
 	}
 	if (!sourcePath) {
-		console.error("usage: render.mjs [--share] <source.md> [out.html] | render.mjs --theme");
+		console.error("usage: render.mjs [--share] <page.html> [out.html] | render.mjs --theme");
 		process.exit(2);
 	}
 	const source = readFileSync(sourcePath, "utf8");
-	const { meta, body } = frontmatter(source);
-	if (!meta.page) throw new Error("The source needs a `page:` slug in its frontmatter");
-	const { markdown } = createMarkdown({ base: dirname(resolve(sourcePath)) });
-	const title = plainText(body.match(/^# (.+)$/m)?.[1] ?? meta.title ?? meta.page);
-	const page = await renderPage({ slug: meta.page, title, body: markdown(body), share: flags.has("--share"), out });
+	const base = dirname(resolve(sourcePath));
+	let page;
+	try {
+		page = await renderPage({ slug: basename(base), title: pageTitle(source), body: source, share: flags.has("--share"), out, base });
+	} catch (error) {
+		if (!(error instanceof SourceError)) throw error;
+		console.error(`${sourcePath}: ${error.message}`);
+		process.exit(1);
+	}
 	const widgets = page.widgets.length ? ` (${page.widgets.join(", ")})` : "";
 	console.log(`${page.target} ${page.bytes} bytes, ${page.interactive ? "Alpine" : "no Alpine"}, ${page.kit ? `kit${widgets}` : "no kit"}, colors: ${page.colors}`);
 }
@@ -195,13 +247,25 @@ function piInstall() {
 	}
 }
 
-function findModule(name) {
-	return moduleDirs.map((dir) => join(dir, name)).find((dir) => existsSync(join(dir, "package.json")));
-}
-
 // ---------------------------------------------------------------- markdown
 
-function renderCode({ text, lang }) {
+// highlight.js from the Pi install, or else from the global npm folder.
+// Without npm, the global folder is the one next to this Node, as the Node install puts it.
+function loadHighlight() {
+	let npmModules;
+	try {
+		npmModules = execFileSync("npm", ["root", "-g"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+	} catch {
+		npmModules = join(dirname(dirname(process.execPath)), "lib/node_modules");
+	}
+	const dir = [pi?.modules, npmModules]
+		.filter(Boolean)
+		.map((modules) => join(modules, "highlight.js"))
+		.find((candidate) => existsSync(join(candidate, "package.json")));
+	return dir ? createRequire(import.meta.url)(dir) : undefined;
+}
+
+function renderCode({ text, lang }, hljs) {
 	const language = (lang ?? "").trim().split(/\s+/)[0];
 	if (language === "diff") {
 		const lines = text.split("\n").map((line) => {
@@ -218,14 +282,10 @@ function renderHeading({ tokens, depth, text }) {
 	return `<h${depth} id="${slug(text.replace(WIKILINKS, wikiLabel))}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
 }
 
-// A local SVG goes into the page as it is, so it takes the page colors. Other local images become data URLs.
+// A Markdown image with a URL stays a link to the remote image.
 function renderImage({ href, text }, base) {
 	if (/^[a-z]+:/i.test(href)) return `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}">`;
-	const path = resolve(base, href.replace(/^~(?=\/)/, homedir()));
-	const type = extname(path).toLowerCase();
-	if (type === ".svg") return `<figure class="fig" role="img" aria-label="${escapeHtml(text)}">${readFileSync(path, "utf8")}</figure>`;
-	if (!IMAGE_TYPES[type]) throw new Error(`Unknown image type: ${href}`);
-	return `<img src="data:${IMAGE_TYPES[type]};base64,${readFileSync(path).toString("base64")}" alt="${escapeHtml(text)}">`;
+	return localImage(href, text, base);
 }
 
 // An image alone in its paragraph is a figure, not text.

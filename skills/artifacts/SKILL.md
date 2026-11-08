@@ -15,18 +15,20 @@ An artifact is a page that you make for the user, outside the terminal: to expla
 - Plain language. Define each term on first use.
 - Concrete before abstract: start from what is true today.
 - The page uses the width of the screen it is on. On a laptop (1280 to 1728 px), text and the part that shows it sit side by side: put each view, example, code block, table or card beside the text that explains it (`.split`). On a phone, they stack in one column. Both must work.
-- Creative: build the parts that the point needs, in HTML in the source. Nothing is fixed.
+- Building blocks: compose the page from the blocks of the kit (`split`, `card`, `grid`, `diagram`, `stepper`, `timeline`). Write a widget only for a model that no block can draw.
 - The terminal theme: Pi's colors from Ghostty, when Ghostty is there. If not, the saved colors. The page keeps these colors in each light or dark setting of the viewer. Only the share copy is light. Use no other colors.
 
 ## Build
 
 ```sh
-node {baseDir}/render.mjs <source.md> [out.html]   # /tmp/pages/<slug>/index.html
-node {baseDir}/render.mjs --share <source.md>      # light copy for other people, and for a PDF
-node {baseDir}/render.mjs --theme                  # the theme as CSS variables, for a page by hand
+node {baseDir}/render.mjs /tmp/pages/<slug>/page.html [out.html]   # /tmp/pages/<slug>/index.html
+node {baseDir}/render.mjs --share /tmp/pages/<slug>/page.html      # share.html: a light copy for other people, and for a PDF
+node {baseDir}/render.mjs --theme                                  # the theme as CSS variables, for a page by hand
 ```
 
-- The source: frontmatter with a `page:` slug, then Markdown and HTML. `<style>` and `<script>` blocks go in as they are.
+- The source: HTML in `/tmp/pages/<slug>/page.html`, the content of `<main>`, with no frontmatter. The slug is the name of its folder. The title is the text of the first `<h1>`: a source with no `<h1>` stops the build.
+- The build converts no Markdown: write HTML. The HTML goes into the page as it is, except `<diagram>`. `<style>` and `<script>` blocks go in as they are.
+- The built page is a disposable output: to change it, change `page.html` and build again.
 - The base shell gives the theme as CSS variables (`--accent`, `--text`, `--muted`, `--card`, `--line`, ...), the type, the spacing, the code style and the layout. Do not write layout CSS of your own (widths, margins, columns, media queries): use the parts of the shell.
 - The layout: the page takes the width of the screen, up to 1760 px, with one left edge for every part. It has two tracks: the main track holds text at a readable measure (`--measure`, 70 ch), and the side track takes the rest of the width. Under 1080 px, it has one track.
   - Text goes in the main track by itself.
@@ -36,21 +38,24 @@ node {baseDir}/render.mjs --theme                  # the theme as CSS variables,
   ```html
   <div class="split">
   <div>
-
-  ## Why the test passed
-
-  The text, in Markdown, with a blank line after each tag.
-
+  <h2>Why the test passed</h2>
+  <p>The text of the section.</p>
   </div>
   <div>
-  <w-trace></w-trace>
+  <diagram src="flow.svg" alt="The request goes through the cache"></diagram>
   </div>
   </div>
   ```
 
-- Other parts: `.grid` (columns that wrap on a phone), `.card`, `.kicker` (a small label above a heading), `.lead` (the answer under it), `.pill` with `.good`, `.warn` or `.bad`, `.term` with `.s1` to `.s4` (a word in the color of a series), `.muted`, `.no-share`.
-- Code blocks: `diff`, and each language that highlight.js knows.
-- A local image goes into the page. A local SVG goes in as it is and takes the page colors. For a diagram, draw it with `show-me` (`mermaid.mjs --large`) and link the SVG: `![what it shows](diagram.svg)`.
+- The other blocks of the kit:
+  - `.card`: a box for one thing. `<div class="card"><h3>Release plan</h3><p>…</p></div>`
+  - `.grid`: columns that wrap on a phone. `<div class="grid"><div class="card">…</div><div class="card">…</div></div>`
+  - `<diagram>`: an image from a file, with `src` relative to the folder of `page.html`. Draw a diagram with `show-me` (`mermaid.mjs --large`) as an SVG in that folder. The SVG goes into the page as it is, so it takes the page colors. A `.png`, `.jpg`, `.jpeg`, `.gif` or `.webp` file becomes an image with a data URL. A missing file or an unknown type stops the build. `<diagram src="flow.svg" alt="what it shows"></diagram>`
+  - `ol.stepper`: ordered steps, all in view. Mark the steps that are done with `li.done`, and the step that runs now with `li.now`. `<ol class="stepper"><li class="done">Plan</li><li class="now">Build</li><li>Check</li></ol>`
+  - `ol.timeline`: events in time order. Each `<li>` starts with a `<time>`. `<ol class="timeline"><li><time>10-27</time>The first page.</li><li><time>11-08</time>The retro.</li></ol>`
+- Other parts: `.kicker` (a small label above a heading), `.lead` (the answer under it), `.pill` with `.good`, `.warn` or `.bad`, `.term` with `.s1` to `.s4` (a word in the color of a series), `.muted`, `.no-share`.
+- A code sample is `<pre class="code"><code>`, with `&lt;`, `&gt;` and `&amp;` in the text. The build does not color code. A diff is `<pre class="code diff"><code>`, with each line in `<span class="add">`, `<span class="del">` or `<span class="ctx">`.
+- A wide table goes in `<div class="tw">`: it scrolls sideways in its own box.
 - A PDF: `<chrome> --headless=new --no-pdf-header-footer --print-to-pdf=<file.pdf> file:///tmp/pages/<slug>/share.html`. `<chrome>` is `google-chrome` or `chromium` on Linux and WSL, and `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"` on macOS.
 
 ## Interaction: Alpine connects, widgets draw
