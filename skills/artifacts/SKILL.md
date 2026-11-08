@@ -26,7 +26,7 @@ node {baseDir}/render.mjs --share /tmp/pages/<slug>/page.html      # share.html:
 node {baseDir}/render.mjs --theme                                  # the theme as CSS variables, for a page by hand
 ```
 
-- The source: HTML in `/tmp/pages/<slug>/page.html`, the content of `<main>`, with no frontmatter. The slug is the name of its folder. The title is the text of the first `<h1>`: a source with no `<h1>` stops the build.
+- The source: HTML in `/tmp/pages/<slug>/page.html`, the content of `<main>`. The slug is the name of its folder. The title is the text of the first `<h1>`: a source with no `<h1>` stops the build.
 - The build converts no Markdown: write HTML. The HTML goes into the page as it is, except `<diagram>`. `<style>` and `<script>` blocks go in as they are.
 - The built page is a disposable output: to change it, change `page.html` and build again.
 - The base shell gives the theme as CSS variables (`--accent`, `--text`, `--muted`, `--card`, `--line`, ...), the type, the spacing, the code style and the layout. Do not write layout CSS of your own (widths, margins, columns, media queries): use the parts of the shell.
@@ -54,7 +54,7 @@ node {baseDir}/render.mjs --theme                                  # the theme a
   - `ol.stepper`: ordered steps, all in view. Mark the steps that are done with `li.done`, and the step that runs now with `li.now`. `<ol class="stepper"><li class="done">Plan</li><li class="now">Build</li><li>Check</li></ol>`
   - `ol.timeline`: events in time order. Each `<li>` starts with a `<time>`. `<ol class="timeline"><li><time>10-27</time>The first page.</li><li><time>11-08</time>The retro.</li></ol>`
 - Other parts: `.kicker` (a small label above a heading), `.lead` (the answer under it), `.pill` with `.good`, `.warn` or `.bad`, `.term` with `.s1` to `.s4` (a word in the color of a series), `.muted`, `.no-share`.
-- A code sample is `<pre class="code"><code>`, with `&lt;`, `&gt;` and `&amp;` in the text. The build does not color code. A diff is `<pre class="code diff"><code>`, with each line in `<span class="add">`, `<span class="del">` or `<span class="ctx">`.
+- A code sample is `<pre class="code"><code>`, with `&lt;`, `&gt;`, `&amp;` and `&quot;` in the text. The build does not color code. A diff is `<pre class="code diff"><code>`, with each line in `<span class="add">`, `<span class="del">` or `<span class="ctx">`.
 - A wide table goes in `<div class="tw">`: it scrolls sideways in its own box.
 - A PDF: `<chrome> --headless=new --no-pdf-header-footer --print-to-pdf=<file.pdf> file:///tmp/pages/<slug>/share.html`. `<chrome>` is `google-chrome` or `chromium` on Linux and WSL, and `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"` on macOS.
 

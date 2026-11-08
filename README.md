@@ -18,8 +18,8 @@ npx skills update -g
 Install all of them: `parley` uses `artifacts` and `show-me`. The skills CLI needs Node.js 22.20 or later.
 `dia` works on macOS only. Its `read` and `eval` need Dia to start with `--enable-applescript-javascript`: `dia.mjs launcher` makes an app that opens Dia that way. While the flag is on, any program with the Automation permission for Dia can read and control all your tabs.
 
-`show-me` needs [Pele](https://www.npmjs.com/package/pele): `npm install -g pele`. `artifacts` colors code with the `highlight.js` of Pi's install or of the global npm folder, when there is one.
+`show-me` needs [Pele](https://www.npmjs.com/package/pele): `npm install -g pele`.
 
 ## Licenses
 
-The skills are MIT (`LICENSE`). The files in `skills/artifacts/vendor/` keep their own licenses: Alpine.js and marked are MIT, Lit is BSD-3-Clause (`skills/artifacts/vendor/lit.LICENSE`), and `entities.json` is the table of named character references from the [HTML Standard](https://html.spec.whatwg.org/multipage/named-characters.html) (WHATWG, CC BY 4.0). `skills/artifacts/kit.js` and `skills/artifacts/widgets/` take their shapes from [Sam Rose's visualisations](https://github.com/samwho/visualisations) (MIT), and the header of `kit.js` has his notice.
+The skills are MIT (`LICENSE`). The files in `skills/artifacts/vendor/` keep their own licenses: Alpine.js is MIT, Lit is BSD-3-Clause (`skills/artifacts/vendor/lit.LICENSE`), and `entities.json` is the table of named character references from the [HTML Standard](https://html.spec.whatwg.org/multipage/named-characters.html) (WHATWG, CC BY 4.0). `skills/artifacts/kit.js` and `skills/artifacts/widgets/` take their shapes from [Sam Rose's visualisations](https://github.com/samwho/visualisations) (MIT), and the header of `kit.js` has his notice.

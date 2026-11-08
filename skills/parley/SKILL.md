@@ -18,7 +18,7 @@ The user takes many decisions each day, on many systems. Brief him like an execu
 - Plain language. Define each term on first use.
 - At most 5 open calls at a time. The others wait their turn.
 - Each turn in the chat, give the state: the output of `decisions.mjs` (see Decisions file), then what comes next.
-- Each round builds on the last one. When a view you already showed changes, show that same view again, updated, with the change marked.
+- Each round builds on the last one. When a view you already showed changes, show that same view again, updated, with the change highlighted.
 - A side topic gets one line at the end.
 - End with one thing to answer.
 

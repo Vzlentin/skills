@@ -2,26 +2,23 @@
 // Builds one self-contained HTML page: the theme, the base shell, Alpine and the widget kit when the page uses them.
 // Usage: render.mjs [--share] <page.html> [out.html]
 //        render.mjs --theme
-// The source is the HTML of <main>, with no frontmatter. The slug is the name of its folder, and the title is the text of its first <h1>.
+// The source is the HTML of <main>. The slug is the name of its folder, and the title is the text of its first <h1>.
 // The page goes to /tmp/pages/<slug>/index.html by default, or share.html with --share.
 // --share: a light copy for other people and for print. --theme: the colors as CSS variables.
 // The HTML goes into the shell as it is, except <diagram>: renderPage() puts the image of its src in the page.
 // A page gets Alpine when its body has an Alpine attribute, and Lit with kit.js when its body has a <w-…> tag.
 // Each <w-name> tag with a widgets/w-name.js file gets that file, and the files that its own tags name.
 //
-// Other scripts import renderPage(), escapeHtml() and SourceError from this file. The command converts no Markdown.
-// Markdown: marked, in vendor/. Code colors: highlight.js, when the Pi install or the global npm prefix has it.
+// Other scripts import renderPage(), escapeHtml() and SourceError from this file.
 // Colors: Pi's `system` theme computed from the Ghostty colors.
 //   Without Pi: the terminal theme (Ghostty colors, mapped by color number). Without Ghostty: saved colors.
 //   The page keeps these colors in each light or dark setting of the viewer.
 // PAGES_NO_PI=1 renders as if Pi were not installed.
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { Marked, Renderer } from "./vendor/marked.esm.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -32,23 +29,8 @@ const LIGHT = {
 	foreground: "#1b1f24",
 	palette: ["#1b1f24", "#b42318", "#2e7d32", "#8a5a00", "#0055a5", "#7b1fa2", "#00796b", "#5f6b7a", "#5f6b7a", "#d92d20", "#43a047", "#a66f00", "#1565c0", "#8e24aa", "#00897b", "#1b1f24"],
 };
-// Wikilinks ([[note]]) have no target on a page: keep their label. Code keeps them as they are.
-const WIKILINKS = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
-const WIKILINK = {
-	name: "wikilink",
-	level: "inline",
-	start: (src) => src.indexOf("[["),
-	tokenizer(src) {
-		const match = new RegExp(`^${WIKILINKS.source}`).exec(src);
-		if (!match) return undefined;
-		return { type: "wikilink", raw: match[0], tokens: this.lexer.inlineTokens(wikiLabel(match[0], match[1], match[2])) };
-	},
-	renderer(token) {
-		return this.parser.parseInline(token.tokens);
-	},
-};
 const IMAGE_TYPES = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
-// An Alpine attribute with a plain quote. In a code block the quote is escaped, so a code sample does not count.
+// An Alpine attribute with a plain quote. A code sample writes its quotes as &quot;, so it does not count.
 const ALPINE_ATTRIBUTE = /\s(x-[a-z][\w:.-]*|@[a-z][\w:.-]*|:[a-z][\w-]*)="/;
 // A widget tag with a plain "<". In a code block the "<" is escaped, so a code sample does not count.
 const WIDGET_TAG = /<(w-[a-z][\w-]*)/;
@@ -61,30 +43,6 @@ const ENTITIES = JSON.parse(readFileSync(join(here, "vendor/entities.json"), "ut
 // An error in the source: the command prints its message on one line. A script that builds pages can catch it and do the same.
 // A class is not hoisted, and the command below runs when the file loads: it must come before the command.
 export class SourceError extends Error {}
-
-const pi = process.env.PAGES_NO_PI === "1" ? undefined : piInstall();
-
-// base: the directory that local images resolve from, the directory of the source.
-// code: a renderer for a code block. It returns HTML, or undefined to leave the block to this file.
-// extensions: marked extensions, for the syntax of a script that builds on this file.
-export function createMarkdown({ base, code, extensions = [] }) {
-	const hljs = loadHighlight();
-	const md = new Marked({ gfm: true });
-	md.use({
-		extensions: [WIKILINK, ...extensions],
-		renderer: {
-			code: (token) => code?.(token) ?? renderCode(token, hljs),
-			heading: renderHeading,
-			image: (token) => renderImage(token, base),
-			paragraph: renderParagraph,
-			table: renderTable,
-		},
-	});
-	return {
-		markdown: (text) => md.parse(text),
-		inline: (text) => md.parseInline(text),
-	};
-}
 
 export function escapeHtml(text) {
 	return String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -189,26 +147,6 @@ function widgetFiles(body) {
 	return found;
 }
 
-export function frontmatter(text) {
-	const match = text.match(/^---\n([\s\S]*?)\n---\n/);
-	if (!match) return { meta: {}, body: text };
-	const meta = {};
-	for (const line of match[1].split("\n")) {
-		const at = line.indexOf(":");
-		if (at > 0) meta[line.slice(0, at).trim()] = line.slice(at + 1).trim().replace(/^"(.*)"$/, "$1");
-	}
-	return { meta, body: text.slice(match[0].length) };
-}
-
-// Markdown to plain text: the emphasis and code marks go. A mark inside a word, as in `XDG_STATE_HOME`, stays.
-export function plainText(markdown) {
-	return markdown.replace(/`/g, "").replace(/(?<!\w)[*_]+|[*_]+(?!\w)/g, "").trim();
-}
-
-export function slug(text) {
-	return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
 if (import.meta.main) {
 	const flags = new Set(process.argv.slice(2).filter((arg) => arg.startsWith("--")));
 	const [sourcePath, out] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
@@ -234,9 +172,11 @@ if (import.meta.main) {
 	console.log(`${page.target} ${page.bytes} bytes, ${page.interactive ? "Alpine" : "no Alpine"}, ${page.kit ? `kit${widgets}` : "no kit"}, colors: ${page.colors}`);
 }
 
-// ---------------------------------------------------------------- modules
+// ---------------------------------------------------------------- colors
 
+// The Pi install whose system theme gives the colors, or undefined with PAGES_NO_PI=1.
 function piInstall() {
+	if (process.env.PAGES_NO_PI === "1") return undefined;
 	const root = join(homedir(), ".pi/agent/install");
 	try {
 		const version = readFileSync(join(root, "current-version"), "utf8").trim();
@@ -247,65 +187,8 @@ function piInstall() {
 	}
 }
 
-// ---------------------------------------------------------------- markdown
-
-// highlight.js from the Pi install, or else from the global npm folder.
-// Without npm, the global folder is the one next to this Node, as the Node install puts it.
-function loadHighlight() {
-	let npmModules;
-	try {
-		npmModules = execFileSync("npm", ["root", "-g"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-	} catch {
-		npmModules = join(dirname(dirname(process.execPath)), "lib/node_modules");
-	}
-	const dir = [pi?.modules, npmModules]
-		.filter(Boolean)
-		.map((modules) => join(modules, "highlight.js"))
-		.find((candidate) => existsSync(join(candidate, "package.json")));
-	return dir ? createRequire(import.meta.url)(dir) : undefined;
-}
-
-function renderCode({ text, lang }, hljs) {
-	const language = (lang ?? "").trim().split(/\s+/)[0];
-	if (language === "diff") {
-		const lines = text.split("\n").map((line) => {
-			const kind = line.startsWith("+") ? "add" : line.startsWith("-") ? "del" : "ctx";
-			return `<span class="${kind}">${escapeHtml(line)}</span>`;
-		});
-		return `<pre class="code diff"><code>${lines.join("\n")}</code></pre>`;
-	}
-	const colored = hljs && language && hljs.getLanguage(language);
-	return `<pre class="code"><code>${colored ? hljs.highlight(text, { language }).value : escapeHtml(text)}</code></pre>`;
-}
-
-function renderHeading({ tokens, depth, text }) {
-	return `<h${depth} id="${slug(text.replace(WIKILINKS, wikiLabel))}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
-}
-
-// A Markdown image with a URL stays a link to the remote image.
-function renderImage({ href, text }, base) {
-	if (/^[a-z]+:/i.test(href)) return `<img src="${escapeHtml(href)}" alt="${escapeHtml(text)}">`;
-	return localImage(href, text, base);
-}
-
-// An image alone in its paragraph is a figure, not text.
-function renderParagraph({ tokens }) {
-	const body = this.parser.parseInline(tokens);
-	return tokens.length === 1 && tokens[0].type === "image" ? `${body}\n` : `<p>${body}</p>\n`;
-}
-
-function wikiLabel(all, target, label) {
-	return label ?? target.split("/").at(-1);
-}
-
-// A wide Markdown table scrolls sideways in its own box.
-function renderTable(token) {
-	return `<div class="tw">${Renderer.prototype.table.call(this, token)}</div>\n`;
-}
-
-// ---------------------------------------------------------------- colors
-
 async function loadTheme() {
+	const pi = piInstall();
 	let terminal;
 	try {
 		terminal = ghosttyColors();
