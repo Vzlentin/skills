@@ -1,8 +1,9 @@
 // <w-aside>The question that the reader asks here</w-aside>, answered in the text after it.
 // A module script: render.mjs adds it to a page that has the tag.
-const { css, html, LitElement } = Lit;
+const { css, html } = Lit;
+const { Widget } = kit;
 
-class Aside extends LitElement {
+class Aside extends Widget {
 	static styles = css`
 		:host {
 			display: grid;
@@ -13,6 +14,9 @@ class Aside extends LitElement {
 			padding: 18px 20px;
 			border-radius: 14px;
 			background: var(--sunk);
+			/* the type of the page text, not the 15px type of the kit */
+			font: inherit;
+			color: inherit;
 		}
 		.face {
 			width: 52px;

@@ -99,11 +99,14 @@ The way back is how the user's edits come back to you: one store, `$store.back`,
 
 When the body has a `<w-…>` tag, the page gets Lit (`{baseDir}/vendor/lit.min.js`) and the kit (`{baseDir}/kit.js`). A code sample does not count: its `<` is escaped.
 
+- Use a widget only for an interactive model that no block of the kit (`stepper`, `timeline`, `diagram`, `split`, `grid`, `card`) can draw.
+- Never put text, a table or a list in the tabs of a widget: the reader sees one tab at a time.
+
 Ready widgets are in `{baseDir}/widgets/`: the page gets `widgets/w-<name>.js` for each `<w-name>` tag. Use them as tags, with no script.
 
 - `<w-aside>The question that the reader asks here</w-aside>`: answer it in the text after it.
 
-A new widget goes in a `<script type="module">` of the page. Each module script has its own scope, so two widgets can use the same names.
+A new widget goes in a `<script type="module">` of the page. It extends `kit.Widget` and uses the global `Lit` and `kit`, with no import from a URL. Each module script has its own scope, so two widgets can use the same names.
 
 ```html
 <script type="module">
@@ -152,7 +155,7 @@ It takes screenshots at 390, 1280 and 1728 px, and prints their paths on one lin
 screenshots: /tmp/pages/<slug>/check/390.png /tmp/pages/<slug>/check/1280.png /tmp/pages/<slug>/check/1728.png
 ```
 
-It lists the errors of the scripts, the `<w-…>` tags that did not start, and the players that do not move. It checks the layout: one left edge, the shell's `--page` and `--measure` with two tracks at 1728 px, no text alone for more than 700 px with the side track empty at 1728 px, no sideways scroll at 390 px, and the same colors in a light and a dark setting. Its exit code is 1 when it finds a problem. It needs Chrome, Chromium or Edge: set `CHROME=<path>` when it does not find one.
+It lists the errors of the scripts, the `<w-…>` tags that did not start, the widgets that do not extend `kit.Widget`, the code that a script loads from outside the page (a `src`, or an `import` of a URL), and the players that do not move. It checks the layout: one left edge, the shell's `--page` and `--measure` with two tracks at 1728 px, no text alone for more than 700 px with the side track empty at 1728 px, no sideways scroll at 390 px, and the same colors in a light and a dark setting. Its exit code is 1 when it finds a problem. It needs Chrome, Chromium or Edge: set `CHROME=<path>` when it does not find one.
 
 - Take screenshots only with `check.mjs`, and read only the paths on its `screenshots:` line. Never run headless Chrome with `--screenshot`, and never guess a file name. When the line is missing, fix the error and run the check again.
 - Look at each screenshot on that line. Ask: what covers the screen on the phone? Is the laptop screen full, with each view next to its text?

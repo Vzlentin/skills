@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Checks a built page in headless Chrome: the errors of its scripts, the w- tags that did not start,
+// the widgets that do not extend kit.Widget, the scripts that load code from outside the page,
 // the players that do not move, the layout, and screenshots at 390, 1280 and 1728 px.
 // The layout: one left edge, the shell's width and two tracks on a laptop, no side track left empty for long on a laptop, no sideways scroll on a phone,
 // and the same colors in a light and in a dark setting of the viewer.
@@ -28,13 +29,17 @@ const MAX_EMPTY_SIDE = 700;
 // The tallest screenshot, in CSS pixels.
 const MAX_HEIGHT = 8000;
 
-// Each w- element of the page and of the widgets' own shadow roots, and whether a script defined it.
+// Each w- tag of the page and of the widgets' own shadow roots, in the order it first appears, with its state:
+// "stopped" when no script defined it, "kit" when its class extends kit.Widget, and "other" for any other class.
+// The state belongs to the tag, because all its elements share one definition in the global registry.
 const LIST_WIDGETS = `(() => {
-	const found = [];
+	const Widget = window.kit?.Widget;
+	const found = {};
 	const visit = (root) => {
 		for (const element of root.querySelectorAll("*")) {
 			const tag = element.localName;
-			if (tag.startsWith("w-")) found.push({ tag, defined: Boolean(customElements.get(tag)) });
+			const definition = customElements.get(tag);
+			if (tag.startsWith("w-")) found[tag] = !definition ? "stopped" : Widget && definition.prototype instanceof Widget ? "kit" : "other";
 			if (element.shadowRoot) visit(element.shadowRoot);
 		}
 	};
@@ -115,6 +120,20 @@ const LAYOUT = `(() => {
 	return { ...layout, empty };
 })()`;
 
+// An import or import() of an http:, https: or // URL, with the URL in group 2.
+const IMPORT = /\bimport\s*(?:\(\s*|[\w$\s{},*]*?\bfrom\s*)?(["'`])((?:https?:)?\/\/[^"'`\s]+)\1/gi;
+// The code that the scripts of the page load from outside it: each src, and each import of a URL.
+// Only the scripts that run as code: a JSON block or an import map is data.
+const OUTSIDE_CODE = `(() => {
+	const urls = [];
+	for (const script of document.querySelectorAll("script")) {
+		if (script.type && !/^(module|(text|application)\\/(x-)?(java|ecma)script)$/i.test(script.type.trim())) continue;
+		if (script.hasAttribute("src")) urls.push(script.getAttribute("src"));
+		for (const match of script.text.matchAll(${IMPORT})) urls.push(match[2]);
+	}
+	return [...new Set(urls)];
+})()`;
+
 // The page is wider than the phone: it scrolls sideways.
 const SIDEWAYS = `document.documentElement.scrollWidth - innerWidth`;
 const BACKGROUND = `getComputedStyle(document.body).backgroundColor`;
@@ -150,10 +169,12 @@ try {
 
 	const shots = [];
 	let widgets;
+	let outside;
 	let sideways = 0;
 	for (const [width, height] of SIZES) {
 		await open(cdp, url, { width, height, scheme: "light", reduced: true });
 		widgets ??= await evaluate(cdp, LIST_WIDGETS);
+		outside ??= await evaluate(cdp, OUTSIDE_CODE);
 		if (width < 500) sideways = await evaluate(cdp, SIDEWAYS);
 		shots.push(await screenshot(cdp, join(out, `${width}.png`), width));
 	}
@@ -165,12 +186,22 @@ try {
 	const players = await checkPlayers(cdp);
 
 	console.log(`screenshots: ${shots.join(" ")}`);
-	const stopped = widgets.filter((widget) => !widget.defined);
-	const started = [...new Set(widgets.filter((widget) => widget.defined).map((widget) => widget.tag))];
+	const tags = (...states) => Object.keys(widgets).filter((tag) => states.includes(widgets[tag]));
+	const started = tags("kit", "other");
 	console.log(`widgets: ${started.length ? started.join(", ") : "none"}`);
+	const stopped = tags("stopped");
 	if (stopped.length) {
 		problems++;
-		console.log(`not started: ${[...new Set(stopped.map((widget) => widget.tag))].join(", ")}. Its script stopped, or no script defines it.`);
+		console.log(`not started: ${stopped.join(", ")}. Its script stopped, or no script defines it.`);
+	}
+	const foreign = tags("other");
+	if (foreign.length) {
+		problems++;
+		console.log(`not a kit widget: ${foreign.join(", ")}. Extend kit.Widget, with the global Lit and kit`);
+	}
+	if (outside.length) {
+		problems++;
+		console.log(`outside code: ${outside.join(", ")}. Use the global Lit and kit, and put other code in a script of the page`);
 	}
 	const { off } = layout;
 	if (off.length) {

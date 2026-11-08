@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { buildPage } from "./artifacts-build.mjs";
 
-const RENDER = fileURLToPath(new URL("../skills/artifacts/render.mjs", import.meta.url));
 // A 1x1 PNG.
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect id="probe-rect" width="10" height="10"/></svg>';
@@ -14,15 +12,9 @@ const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect i
 const root = mkdtempSync(join(tmpdir(), "artifacts-render-"));
 after(() => rmSync(root, { recursive: true, force: true }));
 
-// Writes page.html and its files in <root>/<slug>/, and builds it to an explicit out path.
-function build(slug, page, files = {}) {
-	const dir = join(root, slug);
-	mkdirSync(dir);
-	writeFileSync(join(dir, "page.html"), page);
-	for (const [name, data] of Object.entries(files)) writeFileSync(join(dir, name), data);
-	const out = join(dir, "index.html");
-	const result = spawnSync(process.execPath, [RENDER, join(dir, "page.html"), out], { env: { ...process.env, PAGES_NO_PI: "1" }, encoding: "utf8" });
-	return { ...result, html: result.status === 0 ? readFileSync(out, "utf8") : "" };
+function build(slug, page, files) {
+	const result = buildPage(root, slug, page, files);
+	return { ...result, html: result.status === 0 ? readFileSync(result.out, "utf8") : "" };
 }
 
 test("the HTML goes into the page with no Markdown conversion", () => {
