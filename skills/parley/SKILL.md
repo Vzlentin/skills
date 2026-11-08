@@ -129,17 +129,22 @@ install-lock · open · install lock: who owns it
 
 ## Page
 
-`artifacts` owns the page: its layout, colors, check and bar. parley adds the decisions. Lay out, in order: what is true today, concretely; the options; then what he needs to answer. Give each decision a `.split`: its text, its Plan line and `{{card N}}` in the main track, and the view that explains it in the side track.
+`artifacts` owns the page: its layout, colors, check and bar. parley adds the decisions. Lay out, in order: what is true today, concretely; the options; then what he needs to answer.
 
-Write the page source in `/tmp/pages/<slug>/page.md`: an `artifacts` source with a `## Decisions` section that copies its decisions from the decisions file, in the format of `{baseDir}/template.md`. `build.mjs` adds the parley parts:
+`build.mjs` builds the page from the decisions file. The page has the title and the goal of the file, then `/tmp/pages/<slug>/page.html` when it exists, then the block of each decision that no tag places, in the order of `n`. With no `page.html`, the page has the title, the goal and every decision.
 
-- `## Decisions` becomes the cards: an open your call shows its options as buttons; a my call or a decided call folds to one line. `{{card 3}}`, alone on its line, places card 3 next to its view. A placed card shows its option labels and its Plan line. Its gains (`+`) and costs (`-`) go under `why` when you write them. It does not show its tension: its view holds it.
+- `page.html` is HTML with the blocks of `artifacts` and `<decision n="N">…</decision>`, with no Markdown. It has no `<h1>`: the build writes the title and the goal.
+- `<decision n="3">…</decision>` places the block of decision 3 there. The block is a `.split`: its number, title, kind and tension, and the HTML inside the tag, in the main track, and its card in the side track. Put the view that explains the decision inside the tag. Do not put a `.split` inside a decision tag.
+- The card: an open your call shows its options as buttons, with a badge on the plan. A my call or a decided call folds to one line with its plan or its answer: open it to change it. A decided call also shows its `label` and the user's `words`. Under `why`, the card shows the gains and costs of each option. A live card has "add a note" and "explain first".
 - `{?3}` is a blank: the answer to decision 3, or its plan while it is open. It follows the taps. Restate an answer only with a blank, and write no decided, open or next line: it goes stale at the first tap.
-- Any control can pick: `@click="$store.parley.pick(3, 'b')"`.
-- A ` ```mermaid ` block becomes a `show-me` diagram. It needs Pele: `npm install -g pele`.
-- A live page ends with the bar of `artifacts`: Copy gives the answer line, and Clear takes back the taps and notes. The share copy and a `status: contract` source have no cards to answer and no bar.
+- Any control in an Alpine scope can pick: `@click="$store.parley.pick(3, 'b')"`. A decision block is a scope.
+- A diagram is the `<diagram>` block of `artifacts`, with an SVG from `show-me` (`mermaid.mjs --large`) in the folder of `page.html`.
+- A live page ends with the bar of `artifacts`: Copy gives the answer line, and Clear takes back the taps and notes. The share copy and a contract file have no cards to answer and no bar.
+- An invalid decisions file, a tag that names no decision, a decision placed two times, or a missing diagram file stops the build with one error line.
+
+The decisions are only in the decisions file: `page.html` holds no option, plan or answer. After each answer, apply it to the file, run `decisions.mjs`, then build the page again. The page is disposable.
 
 ```sh
-node {baseDir}/build.mjs <page.md> [out.html]   # /tmp/pages/<slug>/index.html
-node {baseDir}/build.mjs --share <page.md>      # light copy
+node {baseDir}/build.mjs <slug> [out.html]   # /tmp/pages/<slug>/index.html
+node {baseDir}/build.mjs --share <slug>      # share.html: a light copy
 ```

@@ -159,12 +159,14 @@ function summary(data, path) {
 }
 
 function answered(decision) {
-	if (!Object.hasOwn(decision, "answer")) return ["open", `plan ${decision.plan}`, optionLabel(decision, decision.plan)];
-	if (decision.answer === "own") return ["own", decision.label];
-	return [decision.answer, optionLabel(decision, decision.answer)];
+	if (!Object.hasOwn(decision, "answer")) return ["open", `plan ${decision.plan}`, shownLabel(decision)];
+	return [decision.answer, shownLabel(decision)];
 }
 
-function optionLabel(decision, key) {
+// What stands for a decision: the label of its answer, or of its plan while it is open.
+export function shownLabel(decision) {
+	if (decision.answer === "own") return decision.label;
+	const key = Object.hasOwn(decision, "answer") ? decision.answer : decision.plan;
 	return decision.options.find((option) => option.key === key).label;
 }
 

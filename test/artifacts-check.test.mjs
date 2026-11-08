@@ -1,13 +1,9 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
-import { fileURLToPath } from "node:url";
-import { buildPage } from "./artifacts-build.mjs";
-
-const CHECK = fileURLToPath(new URL("../skills/artifacts/check.mjs", import.meta.url));
+import { buildPage, checkPage } from "./artifacts-build.mjs";
 
 const root = mkdtempSync(join(tmpdir(), "artifacts-check-"));
 after(() => rmSync(root, { recursive: true, force: true }));
@@ -17,7 +13,7 @@ after(() => rmSync(root, { recursive: true, force: true }));
 function check(slug, page, files) {
 	const built = buildPage(root, slug, page, files);
 	if (built.status !== 0) throw new Error(`render.mjs failed on ${slug}: ${built.stderr}`);
-	return new Promise((done) => execFile(process.execPath, [CHECK, built.out], (error, stdout, stderr) => done({ status: error ? error.code : 0, stdout, stderr })));
+	return checkPage(built.out);
 }
 
 const [lit, outside, kit] = await Promise.all([
@@ -76,8 +72,7 @@ customElements.define("w-ok", Ok);
 `,
 	),
 ]);
-// check.mjs stops with this message when the machine has no Chrome.
-const skip = lit.stderr.match(/^Error: (No Chrome found.*)$/m)?.[1];
+const skip = lit.skip;
 
 test("a widget class that does not extend kit.Widget is a problem that names its tag, in the page and in a shadow root", { skip }, () => {
 	assert.equal(lit.status, 1, lit.stderr);

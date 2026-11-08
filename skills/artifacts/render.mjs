@@ -9,7 +9,7 @@
 // A page gets Alpine when its body has an Alpine attribute, and Lit with kit.js when its body has a <w-…> tag.
 // Each <w-name> tag with a widgets/w-name.js file gets that file, and the files that its own tags name.
 //
-// Other scripts import createMarkdown() and renderPage() from this file. The command converts no Markdown.
+// Other scripts import renderPage(), escapeHtml() and SourceError from this file. The command converts no Markdown.
 // Markdown: marked, in vendor/. Code colors: highlight.js, when the Pi install or the global npm prefix has it.
 // Colors: Pi's `system` theme computed from the Ghostty colors.
 //   Without Pi: the terminal theme (Ghostty colors, mapped by color number). Without Ghostty: saved colors.
@@ -58,9 +58,9 @@ const DIAGRAM = /<diagram((?:\s+[a-z-]+="[^"]*")*)\s*>\s*<\/diagram>/g;
 // A name with no semicolon is a legacy name: HTML also reads it with no semicolon.
 const ENTITIES = JSON.parse(readFileSync(join(here, "vendor/entities.json"), "utf8"));
 
-// An error in the source: the command prints its message on one line.
+// An error in the source: the command prints its message on one line. A script that builds pages can catch it and do the same.
 // A class is not hoisted, and the command below runs when the file loads: it must come before the command.
-class SourceError extends Error {}
+export class SourceError extends Error {}
 
 const pi = process.env.PAGES_NO_PI === "1" ? undefined : piInstall();
 
