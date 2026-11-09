@@ -45,7 +45,7 @@ Life also shapes by deletion: a hand gets its fingers when the cells between the
 
 ## Flow
 
-1. Get the facts. Search `~/.local/state/parley/` and the earlier records on the topic. A settled decision stays settled until the user opens it again.
+1. Get the facts. Search `${XDG_STATE_HOME:-$HOME/.local/state}/parley/` and the earlier records on the topic. A settled decision stays settled until the user opens it again.
 2. Sort the calls, and write them in the decisions file. A your call is taste, priority, or how it must work for the user: it has no answer until the user gives one. A my call is a choice that evidence can settle: its plan is yours, and one line of evidence goes in the `gains` of its plan option. A call that waits its turn goes into the file in the round that asks it.
 3. Ask in the chat with the output of `decisions.mjs`: its last line is the answer line that takes all your plans.
 4. Apply each answer line to the file. For `?N`, explain N first.
@@ -64,7 +64,7 @@ Life also shapes by deletion: a hand gets its fingers when the cells between the
 
 ## Decisions file
 
-Each parley has one file, `~/.local/state/parley/<slug>.json`. It is the source of truth from Round 1 to the contract, and the only copy of the decisions. Write each decision once, in the file. Write the file yourself, and create the folder when it is missing.
+Each parley has one file, `${XDG_STATE_HOME:-$HOME/.local/state}/parley/<slug>.json`. It is the source of truth from Round 1 to the contract, and the only copy of the decisions. Write each decision once, in the file. Write the file yourself, and create the folder when it is missing.
 
 After each write, run the command below. It checks the file, and prints one error line when the file is wrong. Its output is the state of the turn: one line for each decision, then the answer line that takes all your plans. Show it in the chat, and do not type the decisions again.
 
@@ -126,6 +126,16 @@ install-lock · open · install lock: who owns it
 2 · Stale lock · my call · open · plan a · a dead PID is taken over
 [install-lock] 1a ok
 ```
+
+For a script or an app, `decisions.mjs` also exports its helpers. A bad file or a bad value throws one error line: the file or the slug, the JSON path of the bad value, and what is expected.
+
+- `parleyDir()`: the folder of the decisions files.
+- `decisionsPath(slug)`: the file of a slug, in `parleyDir()`.
+- `readDecisions(path)`: the checked data of a file.
+- `listDecisions(dir)`: the checked data of each file in `dir` (`parleyDir()` by default), in the order of `slug`.
+- `writeDecisions(path, data)`: checks the data, then writes the file as JSON with tabs, and creates the folder when it is missing.
+- `applyAnswers(data, answers, { status, design_sense })`: a new checked parley, with each `{ n, answer, label, words }` in place of the answer of decision `n`.
+- `shownLabel(decision)`: the label of the answer, or of the plan while the decision is open.
 
 ## Page
 

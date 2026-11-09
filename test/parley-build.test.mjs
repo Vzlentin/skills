@@ -10,7 +10,8 @@ import { checkPage } from "./artifacts-build.mjs";
 const BUILD = fileURLToPath(new URL("../skills/parley/build.mjs", import.meta.url));
 const FIXTURE = JSON.parse(readFileSync(fileURLToPath(new URL("fixtures/artifacts-retro.json", import.meta.url)), "utf8"));
 
-// build.mjs reads the decisions file from os.homedir(), which reads HOME, and page.html from /tmp/pages/<slug>/.
+// build.mjs reads the decisions file from os.homedir(), which reads HOME, as XDG_STATE_HOME is empty, and page.html
+// from /tmp/pages/<slug>/.
 const home = mkdtempSync(join(tmpdir(), "parley-build-"));
 const state = join(home, ".local/state/parley");
 mkdirSync(state, { recursive: true });
@@ -69,7 +70,7 @@ function build(name, file, page, { flags = [], files = {} } = {}) {
 	mkdirSync(dir, { recursive: true });
 	if (page !== undefined) writeFileSync(join(dir, "page.html"), page);
 	for (const [fileName, text] of Object.entries(files)) writeFileSync(join(dir, fileName), text);
-	const result = spawnSync(process.execPath, [BUILD, ...flags, slug], { env: { ...process.env, HOME: home, PAGES_NO_PI: "1" }, encoding: "utf8" });
+	const result = spawnSync(process.execPath, [BUILD, ...flags, slug], { env: { ...process.env, HOME: home, XDG_STATE_HOME: "", PAGES_NO_PI: "1" }, encoding: "utf8" });
 	const out = join(dir, flags.includes("--share") ? "share.html" : "index.html");
 	return { ...result, slug, dir, out, html: existsSync(out) ? readFileSync(out, "utf8") : undefined };
 }

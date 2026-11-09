@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Builds the page of a parley from its decisions file, ~/.local/state/parley/<slug>.json, which decisions.mjs reads.
+// Builds the page of a parley from its decisions file, ${XDG_STATE_HOME:-$HOME/.local/state}/parley/<slug>.json, which decisions.mjs reads.
 // Usage: build.mjs [--share] <slug> [out.html]
 // The page: the title and the goal of the file, then /tmp/pages/<slug>/page.html when it exists, then the block of each
 // decision that no tag places, in the order of n.

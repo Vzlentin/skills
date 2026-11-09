@@ -1,20 +1,27 @@
 #!/usr/bin/env node
-// The decisions file of a parley, ~/.local/state/parley/<slug>.json. It is the only copy of the decisions,
-// from the first round to the contract. Each script that reads a decisions file reads it with readDecisions().
+// The decisions file of a parley, ${XDG_STATE_HOME:-$HOME/.local/state}/parley/<slug>.json. It is the only copy of the
+// decisions, from the first round to the contract. Each script that reads a decisions file reads it with readDecisions(),
+// and each script that writes one writes it with writeDecisions().
 // Usage: decisions.mjs <slug>
 // Checks the file of the slug, then prints the state for the chat: the slug, status and title, one line for each
 // decision, and the answer line that takes all the plans. At the contract, the path of the file replaces the answer line.
-import { readFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const KEY = /^[a-z]$/;
 const STATUSES = ["open", "contract"];
 const KINDS = ["your call", "my call"];
 
+// The folder of the decisions files: $XDG_STATE_HOME/parley, or ~/.local/state/parley when XDG_STATE_HOME is unset or
+// empty. It reads the environment at each call.
+export function parleyDir() {
+	return join(process.env.XDG_STATE_HOME || join(homedir(), ".local/state"), "parley");
+}
+
 export function decisionsPath(slug) {
-	return join(homedir(), ".local/state/parley", `${slug}.json`);
+	return join(parleyDir(), `${slug}.json`);
 }
 
 // Returns the data as the file has it. A bad file throws one Error, on one line: the file, the JSON path of the
@@ -28,20 +35,82 @@ export function readDecisions(path) {
 		// V8 quotes the source in the message, with its line breaks.
 		throw new Error(`${path}: not valid JSON: ${error.message.replace(/\s+/g, " ")}`);
 	}
-	try {
-		checkFile(data, basename(path, ".json"));
-	} catch (error) {
-		if (!(error instanceof Invalid)) throw error;
-		throw new Error(`${path}: ${error.message}`);
-	}
+	check(path, () => checkFile(data, basename(path, ".json")));
 	return data;
 }
 
-// A value that breaks the schema. readDecisions puts the file in front of the message.
+// Checks the data, creates the folder when it is missing, writes the file as JSON with tabs, and returns the data.
+// Bad data throws the same Error as readDecisions, and the file and the folder do not change.
+export function writeDecisions(path, data) {
+	check(path, () => checkFile(data, basename(path, ".json")));
+	mkdirSync(dirname(path), { recursive: true });
+	writeFileSync(path, `${JSON.stringify(data, null, "\t")}\n`);
+	return data;
+}
+
+// The checked data of each .json file in the folder, in the code-unit order of the slugs, or [] when the folder does
+// not exist. A bad file throws its readDecisions error.
+export function listDecisions(dir = parleyDir()) {
+	let names;
+	try {
+		names = readdirSync(dir);
+	} catch (error) {
+		if (error.code === "ENOENT") return [];
+		throw error;
+	}
+	return names
+		.filter((name) => name.endsWith(".json"))
+		.map((name) => readDecisions(join(dir, name)))
+		.sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0));
+}
+
+// Returns a new parley with the answers in it, checked, and leaves data as it is. Each update { n, answer, label, words }
+// replaces the answer of decision n as one unit: a label or words that the update does not give go. Two updates with
+// the same n are an error. status and design_sense replace those of data when they are given. A bad update or result
+// throws one Error, on one line: the slug, the JSON path of the bad value and what is expected.
+export function applyAnswers(data, answers, { status, design_sense } = {}) {
+	const next = structuredClone(data);
+	check(next.slug, () => {
+		const updated = new Set();
+		answers.forEach((update, index) => {
+			const at = `answers[${index}]`;
+			checkKeys(update, at, ["n", "answer"], ["label", "words"]);
+			const decision = next.decisions.find((candidate) => candidate.n === update.n);
+			if (!decision) {
+				const numbers = next.decisions.map((candidate) => candidate.n).toSorted((a, b) => a - b);
+				fail(`${at}.n`, `expected the number of a decision (${numbers.join(", ")})`);
+			}
+			if (updated.has(update.n)) fail(`${at}.n`, `expected a number that no other update has, ${update.n} is taken`);
+			updated.add(update.n);
+			decision.answer = update.answer;
+			for (const key of ["label", "words"]) {
+				if (Object.hasOwn(update, key)) decision[key] = update[key];
+				else delete decision[key];
+			}
+		});
+		if (status !== undefined) next.status = status;
+		if (design_sense !== undefined) next.design_sense = design_sense;
+		checkFile(next, next.slug);
+	});
+	return next;
+}
+
+// Runs a check of the schema. A bad value throws one Error, on one line, with where in front: a file or a slug.
+function check(where, run) {
+	try {
+		run();
+	} catch (error) {
+		if (!(error instanceof Invalid)) throw error;
+		throw new Error(`${where}: ${error.message}`);
+	}
+}
+
+// A value that breaks the schema. check() puts the file or the slug in front of the message.
 class Invalid extends Error {}
 
 // The schema. A key that it does not name is an error at every level. Each string is plain text, and no string or
-// list is empty: a file leaves out an optional key in its place.
+// list is empty: a file leaves out an optional key in its place. Each loop visits a gap in a list as undefined, so a
+// gap fails here: forEach skips a gap, and JSON.stringify writes it as null.
 // Top level: slug, status, title, goal and decisions. Optional: evidence, and design_sense, which a contract needs.
 function checkFile(data, name) {
 	if (!isObject(data)) throw new Invalid("expected a JSON object");
@@ -57,12 +126,12 @@ function checkFile(data, name) {
 	else if (data.status === "contract") fail("design_sense", "expected a string, as the status is contract");
 	checkList(data.decisions, "decisions");
 	const numbers = new Set();
-	data.decisions.forEach((decision, index) => {
+	for (const [index, decision] of data.decisions.entries()) {
 		const at = `decisions[${index}]`;
 		checkDecision(decision, at, data.status);
 		if (numbers.has(decision.n)) fail(`${at}.n`, `expected a number that no other decision has, ${decision.n} is taken`);
 		numbers.add(decision.n);
-	});
+	}
 }
 
 // A decision: n, title, kind, options and plan. Optional: tension, answer, label, which an own answer needs, and
@@ -75,11 +144,11 @@ function checkDecision(decision, at, status) {
 	if (Object.hasOwn(decision, "tension")) checkText(decision.tension, `${at}.tension`);
 	checkList(decision.options, `${at}.options`);
 	const keys = [];
-	decision.options.forEach((option, index) => {
+	for (const [index, option] of decision.options.entries()) {
 		checkOption(option, `${at}.options[${index}]`);
 		if (keys.includes(option.key)) fail(`${at}.options[${index}].key`, `expected a key that no other option has, ${option.key} is taken`);
 		keys.push(option.key);
-	});
+	}
 	if (!keys.includes(decision.plan)) fail(`${at}.plan`, `expected a key of its options (${keys.join(", ")})`);
 	if (Object.hasOwn(decision, "answer")) {
 		if (decision.answer !== "own" && !keys.includes(decision.answer)) fail(`${at}.answer`, `expected own or a key of its options (${keys.join(", ")})`);
@@ -119,7 +188,7 @@ function checkText(value, at, { plain = true } = {}) {
 
 function checkTexts(value, at, options) {
 	checkList(value, at);
-	value.forEach((entry, index) => checkText(entry, `${at}[${index}]`, options));
+	for (const [index, entry] of value.entries()) checkText(entry, `${at}[${index}]`, options);
 }
 
 function checkList(value, at) {
