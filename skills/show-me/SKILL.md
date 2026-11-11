@@ -131,9 +131,8 @@ In the chat, Pi draws a ` ```mermaid ` block itself. A diagram for a file (a PR 
 
 - Pele is in the global npm folder (`npm root -g`). If it is missing, ask the user, and suggest `npm install -g pele`. Do not install it in a project or with `npx`.
 - A parse error means the source is wrong. For example, `call`, `end`, `class`, `style`, `click` and `graph` cannot be node IDs.
-- Look at the SVG before you use it. Make a PNG that you can read:
-  - macOS: `qlmanage -t -s 1600 -o /tmp /tmp/<name>.svg`.
-  - Linux and WSL: `google-chrome --headless=new --window-size=1600,1200 --screenshot=/tmp/<name>.png file:///tmp/<name>.svg` (or `chromium`). If there is no Chrome: `rsvg-convert -w 1600 /tmp/<name>.svg -o /tmp/<name>.png`.
+- Look at the SVG before you use it: add `--png`, and read the PNG path that it prints after the SVG path. The PNG is the whole SVG at twice its size. It needs Chrome, Chromium or Edge: set `CHROME=<path>` when it does not find one.
+  - With no browser: `qlmanage -t -s 1600 -o /tmp /tmp/<name>.svg` on macOS, `rsvg-convert -w 1600 /tmp/<name>.svg -o /tmp/<name>.png` on Linux and WSL.
 - Scripts import `renderMermaid(source, { large })` from `{baseDir}/mermaid.mjs`.
 
 You may use one of these, you may use several, it is unlikely you will use all of them. Use your judgement and don't overwhelm the user.
