@@ -1,6 +1,6 @@
 ---
 name: artifacts
-description: "Make HTML pages for the user and get them to him: pages that teach, with widgets that the reader plays, pages that ask for his edits, and copies to share. Covers the approach, the terminal theme, the base shell, Alpine and widgets, the way back, the check, and the hosts (local file, Radius, Claude Artifact)."
+description: "Make HTML pages for the user and get them to him: pages that teach, with widgets that the reader plays, pages that ask for his edits, and copies to share. Covers the approach, the terminal theme, the base shell, Alpine and widgets, the way back, the check, and the hosts (local file, Tailscale, Radius, Claude Artifact)."
 ---
 
 # artifacts
@@ -29,6 +29,7 @@ node {baseDir}/render.mjs --theme                                  # the theme a
 - The source: HTML in `/tmp/pages/<slug>/page.html`, the content of `<main>`. The slug is the name of its folder. The title is the text of the first `<h1>`: a source with no `<h1>` stops the build.
 - The build converts no Markdown: write HTML. The HTML goes into the page as it is, except `<diagram>`. `<style>` and `<script>` blocks go in as they are.
 - The built page is a disposable output: to change it, change `page.html` and build again.
+- A page that must last more than a day keeps its source (`page.html` and its files) in `${XDG_STATE_HOME:-$HOME/.local/state}/pages/<slug>/`, because `/tmp` does not last. `render.mjs` builds it from there and still writes `/tmp/pages/<slug>/index.html`, because the slug is the name of the folder of `page.html`.
 - The base shell gives the theme as CSS variables (`--accent`, `--text`, `--muted`, `--card`, `--line`, ...), the type, the spacing, the code style and the layout. Do not write layout CSS of your own (widths, margins, columns, media queries): use the parts of the shell.
 - The layout: the page takes the width of the screen, up to 1760 px, with one left edge for every part. It has two tracks: the main track holds text at a readable measure (`--measure`, 70 ch), and the side track takes the rest of the width. Under 1080 px, it has one track.
   - Text goes in the main track by itself.
@@ -177,7 +178,66 @@ It lists the errors of the scripts, the `<w-…>` tags that did not start, the w
 
 ## Hosts
 
-When the user is at this machine, the local file works. When he is not (on his phone, in a remote session), the host must give him a link: Radius when its tools (`artifacts_create`, ...) are there, else the Claude Code Artifact.
+When the user is at this machine, the local file works. When he is not (on his phone, in a remote session), the host must give him a link. Use the first host that is there: Tailscale when this machine is on a tailnet, then Radius when its tools (`artifacts_create`, ...) are there, else the Claude Code Artifact. Tailscale comes first because it needs no upload and no probe of tools.
+
+### Tailscale
+
+The host is a static server of `/tmp/pages`, the folder of the built pages, behind `tailscale serve`. Use it when this machine is on a tailnet with HTTPS. Do these steps in this order:
+
+1. Run the probe:
+
+   ```sh
+   tailscale status --json --peers=false | node -e 'const s = JSON.parse(require("fs").readFileSync(0, "utf8")); console.log(s.BackendState, "https" in (s.Self?.CapMap ?? {}) ? "https" : "no-https", s.Self?.DNSName?.replace(/\.$/, ""))'
+   ```
+
+   It prints `Running https <DNS name>` when this host works. `<DNS name>` is `Self.DNSName` with no final dot. When it prints another thing, or the `tailscale` command is not there, use the next host.
+
+2. Read the mappings:
+
+   ```sh
+   tailscale serve status
+   ```
+
+   Each block of the output is one port. Its first line is `https://<DNS name>` for port 443, or `https://<DNS name>:<https port>` for another port, then `(tailnet only)` or `(Funnel on)`. Each `|-- <path> <type> <target>` line under it is one mapping of that port. A `/pages` line has the path `/pages/` (a folder) or `/pages` (a proxy).
+
+   In any block, a `/pages` line with `path /tmp/pages`, or with `proxy http://127.0.0.1:<port>`, already serves the pages: reuse it. For a `proxy` line, do step 4. Then go to step 5.
+
+3. Else add one mapping. First pick its `<https port>`. It is 443, unless the 443 block is `(Funnel on)` or has a `/pages` line. Else it is a port that does not show in the output, for example 8443. This choice keeps each existing mapping as it is: `tailscale serve` turns Funnel off on its port, and a new `/pages` mapping replaces the `/pages` line of its port. When the `<https port>` is not 443, add `--https=<https port>` after `--bg` in each `tailscale serve` command below.
+
+   The way: `tailscale serve --bg --set-path /pages /tmp/pages`. Tailscale serves the folder itself, with no other process. `--bg` keeps the mapping after the command ends.
+
+   The fallback, when `tailscale serve` refuses a folder (the macOS app, or a user who cannot run `sudo tailscale`): a static server that binds 127.0.0.1 only, on a free `<port>`, behind `tailscale serve`. Start the server, and keep the PID that the second line prints:
+
+   ```sh
+   nohup python3 -m http.server <port> --bind 127.0.0.1 --directory /tmp/pages >/dev/null 2>&1 &
+   echo $!
+   ```
+
+   Do step 4. When the check passes, map the port:
+
+   ```sh
+   tailscale serve --bg --set-path /pages http://127.0.0.1:<port>
+   ```
+
+   Then go to step 5.
+
+4. Check that the server on `<port>` gives this page:
+
+   ```sh
+   curl -fsS --retry 5 --retry-connrefused http://127.0.0.1:<port>/<slug>/ | cmp -s - /tmp/pages/<slug>/index.html
+   ```
+
+   The check passes when the exit code is 0. A `curl: (7)` line can come first, because curl tries again while the server starts.
+
+   - On reuse, when the check fails, run the start commands of step 3 again with the same port, because the server stops with the machine. Then do the check again.
+   - After a start, when the check fails, stop the server by its PID and use the next host.
+
+5. Give the link: `https://<DNS name>/pages/<slug>/` when the `<https port>` is 443, else `https://<DNS name>:<https port>/pages/<slug>/`. The `<https port>` is the port of the block that holds the mapping. Keep the final `/`.
+
+- Never run `tailscale serve reset`: it removes every mapping.
+- The pages stay on the tailnet. Never use `tailscale funnel`: it puts the page on the public internet.
+- The link opens only on the devices of the user's tailnet. For other people, use the share copy on another host.
+- If `tailscale serve` fails for another reason, use the next host.
 
 ### Radius
 
