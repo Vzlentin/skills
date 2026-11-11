@@ -149,16 +149,28 @@ Before you publish, run the check on the built page:
 node {baseDir}/check.mjs /tmp/pages/<slug>/index.html
 ```
 
-It takes screenshots at 390, 1280 and 1728 px, and prints their paths on one line:
+At 390, 1280 and 1728 px, it cuts the whole page into tiles of one screen. It prints the path of each tile with the heading that the tile starts at:
 
 ```
-screenshots: /tmp/pages/<slug>/check/390.png /tmp/pages/<slug>/check/1280.png /tmp/pages/<slug>/check/1728.png
+tiles at 390 px:
+  /tmp/pages/<slug>/check/390-1.png  The title of the page
+  /tmp/pages/<slug>/check/390-2.png  The title of the page
+  /tmp/pages/<slug>/check/390-3.png  Options
+  …
+tiles at 1280 px:
+  /tmp/pages/<slug>/check/1280-1.png  The title of the page
+  …
+tiles at 1728 px:
+  …
 ```
 
-It lists the errors of the scripts, the `<w-…>` tags that did not start, the widgets that do not extend `kit.Widget`, the code that a script loads from outside the page (a `src`, or an `import` of a URL), and the players that do not move. It checks the layout: one left edge, the shell's `--page` and `--measure` with two tracks at 1728 px, no text alone for more than 700 px with the side track empty at 1728 px, no sideways scroll at 390 px, and the same colors in a light and a dark setting. Its exit code is 1 when it finds a problem. It needs Chrome, Chromium or Edge: set `CHROME=<path>` when it does not find one.
+`--from '<selector>'`, for example `--from '#options'`, starts the tiles at the first element that matches.
 
-- Take screenshots only with `check.mjs`, and read only the paths on its `screenshots:` line. Never run headless Chrome with `--screenshot`, and never guess a file name. When the line is missing, fix the error and run the check again.
-- Look at each screenshot on that line. Ask: what covers the screen on the phone? Is the laptop screen full, with each view next to its text?
+It lists the errors of the scripts, the `<w-…>` tags that did not start, the widgets that do not extend `kit.Widget`, the code that a script loads from outside the page (a `src`, or an `import` of a URL), and the players that do not move. It checks the layout: one left edge, the shell's `--page` and `--measure` with two tracks at 1728 px, no text alone for more than 700 px with the side track empty at 1728 px, no sideways scroll at 390 px, and the same colors in a light and a dark setting. Its exit code is 1 when it finds a problem, and 2 when `--from` matches no element. It needs Chrome, Chromium or Edge: set `CHROME=<path>` when it does not find one.
+
+- Take screenshots only with `check.mjs`, and read only the tile paths that it prints. Never run headless Chrome with `--screenshot`, never crop a tile, and never guess a file name. When the tiles are missing, fix the error and run the check again.
+- Pick the tiles to read by their heading. Ask: what covers the screen on the phone? Is the laptop screen full, with each view next to its text?
+- After a change, run the check with `--from` on the part that changed.
 - Open the page and use each control once.
 - One error in a script stops all the widgets of that script.
 - A script contains no `</script`: it would end the script.

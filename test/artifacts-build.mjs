@@ -17,11 +17,11 @@ export function buildPage(root, slug, page, files = {}) {
 	return { ...result, out };
 }
 
-// Runs check.mjs on a built page, with no block, as a check takes a few seconds in Chrome.
+// Runs check.mjs on a built page, with the other arguments after it, with no block, as a check takes a few seconds in Chrome.
 // skip is the reason to skip a test that needs Chrome, or undefined.
-export function checkPage(out) {
+export function checkPage(out, ...args) {
 	return new Promise((done) =>
-		execFile(process.execPath, [CHECK, out], (error, stdout, stderr) => {
+		execFile(process.execPath, [CHECK, out, ...args], (error, stdout, stderr) => {
 			// check.mjs stops with this message when the machine has no Chrome.
 			const skip = stderr.match(/^Error: (No Chrome found.*)$/m)?.[1];
 			done({ status: error ? error.code : 0, stdout, stderr, skip });

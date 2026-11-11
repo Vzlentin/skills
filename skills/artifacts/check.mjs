@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 // Checks a built page in headless Chrome: the errors of its scripts, the w- tags that did not start,
 // the widgets that do not extend kit.Widget, the scripts that load code from outside the page,
-// the players that do not move, the layout, and screenshots at 390, 1280 and 1728 px.
+// the players that do not move, the layout, and tiles of one viewport at 390, 1280 and 1728 px.
 // The layout: one left edge, the shell's width and two tracks on a laptop, no side track left empty for long on a laptop, no sideways scroll on a phone,
 // and the same colors in a light and in a dark setting of the viewer.
-// Usage: check.mjs <page.html | url> [out dir]
-// The screenshots go to <directory of the page>/check/ by default. CHROME=<path> picks the browser.
-// The exit code is 1 when the check finds a problem.
+// Usage: check.mjs <page.html | url> [out dir] [--from <selector>]
+// The tiles go to <directory of the page>/check/<width>-<n>.png by default. They start at the top of the page,
+// or at the first element that matches --from, and each tile names the heading that it starts at.
+// CHROME=<path> picks the browser.
+// The exit code is 1 when the check finds a problem, and 2 for a wrong argument or a --from that matches no element.
 //
-// The screenshots ask for reduced motion: CSS transitions do not run in headless Chrome, and players
+// The tiles ask for reduced motion: CSS transitions do not run in headless Chrome, and players
 // do not start by themselves. The player check presses play and waits one second of real time,
 // because --virtual-time-budget does not move requestAnimationFrame.
+// Fixed and sticky parts show where they are with the page at its top.
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,8 +29,9 @@ const SIZES = [
 const LAPTOP = SIZES[2];
 // The side track may stay empty beside this much text, in CSS pixels: a part of a screen.
 const MAX_EMPTY_SIDE = 700;
-// The tallest screenshot, in CSS pixels.
-const MAX_HEIGHT = 8000;
+
+// A wrong argument that the check finds in the page: it stops the check with exit 2, after Chrome closes.
+class Stop extends Error {}
 
 // Each w- tag of the page and of the widgets' own shadow roots, in the order it first appears, with its state:
 // "stopped" when no script defined it, "kit" when its class extends kit.Widget, and "other" for any other class.
@@ -47,6 +51,12 @@ const LIST_WIDGETS = `(() => {
 	return found;
 })()`;
 
+// A page function: the text of an element on one line, cut at length characters.
+const SNIPPET = `(element, length) => element.textContent.trim().replace(/\\s+/g, " ").slice(0, length)`;
+// A page function: the top of an element in the page, rounded down to a whole px.
+// The headings and --from share it, so that a --from on a heading names that heading in tile 1.
+const TOP = `(element) => Math.floor(element.getBoundingClientRect().top + scrollY)`;
+
 // The layout of main, in one pass. It gives { off, twoTracks, width, page, measure, empty }, or { ..., skipped } when main has no text.
 // off: the parts of the flow that start left or right of the column, or end right of it: a page with them has more than one left edge.
 //   The flow is the children of main, and of the plain blocks in it (no background, border, shadow, grid or flex).
@@ -60,7 +70,7 @@ const LAYOUT = `(() => {
 	const box = main.getBoundingClientRect();
 	const left = box.left + parseFloat(style.paddingLeft);
 	const right = box.right - parseFloat(style.paddingRight);
-	const snippet = (element, length) => element.textContent.trim().replace(/\\s+/g, " ").slice(0, length);
+	const snippet = ${SNIPPET};
 	const plain = (element) => {
 		const s = getComputedStyle(element);
 		return s.display === "block" && s.backgroundColor === "rgba(0, 0, 0, 0)" && !(parseFloat(s.borderLeftWidth) > 0) && s.boxShadow === "none" && !element.localName.includes("-");
@@ -138,11 +148,39 @@ const OUTSIDE_CODE = `(() => {
 const SIDEWAYS = `document.documentElement.scrollWidth - innerWidth`;
 const BACKGROUND = `getComputedStyle(document.body).backgroundColor`;
 
+// The h1, h2 and h3 that the page shows, in page order, with their top in the page, rounded down, and their text.
+// A heading in a closed details, or with display none, has a top too: checkVisibility() removes it.
+const HEADINGS = `[...document.querySelectorAll("h1,h2,h3")].filter((element) => element.checkVisibility()).map((element) => ({
+	top: (${TOP})(element),
+	text: (${SNIPPET})(element, 60),
+}))`;
+
+// { top } of the first element that matches the selector, or { reason } when there is none.
+// The selector goes in as a JSON string, so that no quote in it ends the code.
+const FROM = (selector) => `(() => {
+	let element;
+	try {
+		element = document.querySelector(${JSON.stringify(selector)});
+	} catch {
+		return { reason: "is not a valid selector" };
+	}
+	return element ? { top: (${TOP})(element) } : { reason: "matches no element" };
+})()`;
+
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
-const [target, outArg] = process.argv.slice(2);
-if (!target) {
-	console.error("usage: check.mjs <page.html | url> [out dir]");
+// --from takes the next argument. The other arguments are the page and the out dir, in this order.
+const positional = [];
+let from;
+let usage = false;
+for (let i = 2; i < process.argv.length; i++) {
+	if (process.argv[i] !== "--from") positional.push(process.argv[i]);
+	else if (i + 1 < process.argv.length) from = process.argv[++i];
+	else usage = true;
+}
+const [target, outArg] = positional;
+if (!target || usage) {
+	console.error("usage: check.mjs <page.html | url> [out dir] [--from <selector>]");
 	process.exit(2);
 }
 const local = existsSync(target);
@@ -153,6 +191,7 @@ mkdirSync(out, { recursive: true });
 const profile = mkdtempSync(join(tmpdir(), "check-"));
 const chrome = spawn(findChrome(), ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "about:blank"], { stdio: "ignore" });
 let problems = 0;
+let stop;
 try {
 	const cdp = await connect(await devtoolsPort());
 	const errors = new Set();
@@ -167,7 +206,7 @@ try {
 	await cdp.send("Log.enable");
 	await cdp.send("Page.enable");
 
-	const shots = [];
+	const groups = [];
 	let widgets;
 	let outside;
 	let sideways = 0;
@@ -176,16 +215,19 @@ try {
 		widgets ??= await evaluate(cdp, LIST_WIDGETS);
 		outside ??= await evaluate(cdp, OUTSIDE_CODE);
 		if (width < 500) sideways = await evaluate(cdp, SIDEWAYS);
-		shots.push(await screenshot(cdp, join(out, `${width}.png`), width));
+		groups.push({ width, tiles: await tiles(cdp, width, height) });
 	}
-	// The light setting stays from the screenshots: the dark one must give the same colors.
+	// The light setting stays from the tiles: the dark one must give the same colors.
 	const light = await evaluate(cdp, BACKGROUND);
 	await open(cdp, url, { width: LAPTOP[0], height: LAPTOP[1], scheme: "dark", reduced: false });
 	const dark = await evaluate(cdp, BACKGROUND);
 	const layout = await evaluate(cdp, LAYOUT);
 	const players = await checkPlayers(cdp);
 
-	console.log(`screenshots: ${shots.join(" ")}`);
+	for (const group of groups) {
+		console.log(`tiles at ${group.width} px:`);
+		for (const { file, heading } of group.tiles) console.log(`  ${file}${heading ? `  ${heading}` : ""}`);
+	}
 	const tags = (...states) => Object.keys(widgets).filter((tag) => states.includes(widgets[tag]));
 	const started = tags("kit", "other");
 	console.log(`widgets: ${started.length ? started.join(", ") : "none"}`);
@@ -240,12 +282,16 @@ try {
 		for (const error of errors) console.log(`  ${error.split("\n")[0]}`);
 	} else console.log("errors: none");
 	cdp.close();
+} catch (error) {
+	if (!(error instanceof Stop)) throw error;
+	console.error(error.message);
+	stop = error;
 } finally {
 	chrome.kill();
 	await sleep(200);
 	rmSync(profile, { recursive: true, force: true });
 }
-process.exit(problems ? 1 : 0);
+process.exit(stop ? 2 : problems ? 1 : 0);
 
 // ---------------------------------------------------------------- page
 
@@ -264,16 +310,29 @@ async function open(cdp, url, { width, height, scheme, reduced }) {
 	await sleep(500);
 }
 
-async function screenshot(cdp, file, width) {
+// Cuts the page into tiles of one viewport, width x height, and writes them to <out>/<width>-<n>.png.
+// The tiles start at the first element that matches --from, or at the top of the page, and go to its end.
+// The last tile is shorter when the page ends. A tile names the last heading at or above its top,
+// or the first heading when it is above all of them. It gives [{ file, heading }].
+// A --from that is not a selector, or matches no element, throws a Stop.
+async function tiles(cdp, width, height) {
+	const { top: start = 0, reason } = from === undefined ? {} : await evaluate(cdp, FROM(from));
+	if (reason) throw new Stop(`--from '${from}' ${reason} at ${width} px`);
+	const headings = await evaluate(cdp, HEADINGS);
 	const { cssContentSize } = await cdp.send("Page.getLayoutMetrics");
-	const height = Math.min(Math.ceil(cssContentSize.height), MAX_HEIGHT);
-	const { data } = await cdp.send("Page.captureScreenshot", {
-		format: "png",
-		captureBeyondViewport: true,
-		clip: { x: 0, y: 0, width, height, scale: 1 },
-	});
-	writeFileSync(file, Buffer.from(data, "base64"));
-	return file;
+	const end = Math.ceil(cssContentSize.height);
+	const result = [];
+	for (let y = start; y < end; y += height) {
+		const { data } = await cdp.send("Page.captureScreenshot", {
+			format: "png",
+			captureBeyondViewport: true,
+			clip: { x: 0, y, width, height: Math.min(height, end - y), scale: 1 },
+		});
+		const file = join(out, `${width}-${result.length + 1}.png`);
+		writeFileSync(file, Buffer.from(data, "base64"));
+		result.push({ file, heading: (headings.findLast((heading) => heading.top <= y) ?? headings[0])?.text });
+	}
+	return result;
 }
 
 // Press play on each player of kit.players, wait one second of real time, and read its value again.
