@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -228,6 +228,54 @@ test("the command with no slug prints its usage and exits with 2", () => {
 	const result = run();
 	assert.equal(result.status, 2);
 	assert.ok(result.stderr.startsWith("usage: decisions.mjs <slug>"), result.stderr);
+});
+
+// An open file with count decisions: 1 to 5 are open your calls, and the others are decided.
+function writeCalls(count) {
+	const slug = `calls-${count}`;
+	const decisions = Array.from({ length: count }, (_, index) => ({ ...OPEN.decisions[0], n: index + 1, ...(index < 5 ? {} : { answer: "b" }) }));
+	write(slug, JSON.stringify({ ...OPEN, slug, decisions }));
+	return slug;
+}
+
+test("the command warns on one stderr line with the number when an open file has more than 9 decisions", () => {
+	const result = run(writeCalls(10));
+	assert.equal(result.status, 0, result.stderr);
+	const lines = result.stdout.trimEnd().split("\n");
+	assert.equal(lines.length, 12);
+	assert.equal(lines[0], "calls-10 · open · stack 070 roadmap");
+	assert.equal(lines[10], "10 · Wave order · your call · b · both at once");
+	assert.equal(lines[11], "[calls-10] 1a 2a 3a 4a 5a");
+	assert.match(result.stderr, /^.+\n$/);
+	assert.match(result.stderr, /\b10\b/);
+});
+
+test("the warning comes before the state, so the answer line is the last line of stdout and stderr together", () => {
+	const slug = writeCalls(10);
+	// One file for both streams: file writes are synchronous, so the file keeps the order of the writes.
+	const out = join(home, "merged.txt");
+	const fd = openSync(out, "w");
+	try {
+		spawnSync(process.execPath, [COMMAND, slug], { env: { ...process.env, HOME: home, XDG_STATE_HOME: "" }, stdio: ["ignore", fd, fd] });
+	} finally {
+		closeSync(fd);
+	}
+	const lines = readFileSync(out, "utf8").trimEnd().split("\n");
+	assert.equal(lines.length, 13);
+	assert.equal(lines.at(-1), "[calls-10] 1a 2a 3a 4a 5a");
+});
+
+test("the command gives no warning for an open file with 9 decisions", () => {
+	const result = run(writeCalls(9));
+	assert.equal(result.status, 0, result.stderr);
+	assert.equal(result.stderr, "");
+});
+
+test("the command gives no warning for a contract, also above 9 decisions", () => {
+	write("artifacts-retro", readFileSync(FIXTURE, "utf8"));
+	const result = run("artifacts-retro");
+	assert.equal(result.status, 0, result.stderr);
+	assert.equal(result.stderr, "");
 });
 
 test("parleyDir is XDG_STATE_HOME/parley, or ~/.local/state/parley when XDG_STATE_HOME is unset or empty", () => {

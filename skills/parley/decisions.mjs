@@ -5,6 +5,9 @@
 // Usage: decisions.mjs <slug>
 // Checks the file of the slug, then prints the state for the chat: the slug, status and title, one line for each
 // decision, and the answer line that takes all the plans. At the contract, the path of the file replaces the answer line.
+// An open file with more than 9 decisions also gives one warning line on stderr, before the state, with the number:
+// restate the design as its nouns, and simplify it before the next round. A contract gives no warning. The warning does
+// not change stdout or the exit code.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -13,6 +16,8 @@ const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const KEY = /^[a-z]$/;
 const STATUSES = ["open", "contract"];
 const KINDS = ["your call", "my call"];
+// Above this number of decisions, an open parley grows by patches, and the command warns.
+const DECISION_LIMIT = 9;
 
 // The folder of the decisions files: $XDG_STATE_HOME/parley, or ~/.local/state/parley when XDG_STATE_HOME is unset or
 // empty. It reads the environment at each call.
@@ -252,6 +257,9 @@ if (import.meta.main) {
 	} catch (error) {
 		console.error(error.message);
 		process.exit(1);
+	}
+	if (data.status === "open" && data.decisions.length > DECISION_LIMIT) {
+		console.error(`Warning: ${data.decisions.length} decisions, more than ${DECISION_LIMIT}. Before the next round, restate the design as its nouns in one view, and simplify it`);
 	}
 	console.log(summary(data, path));
 }

@@ -14,7 +14,7 @@ A parley turns a question that only the user can answer into a contract that you
 The user takes many decisions each day, on many systems. Brief him like an executive.
 
 - BLUF, then Minto's pyramid principle.
-- Start each round with the rundown: what is true today, concretely, as a `show-me` view. The calls come after it.
+- Start each round with the rundown: what is true today, concretely, as a `show-me` view. From the second round, the rundown includes the design as its nouns, in one view: its objects, stores, agents, prompts and steps. The calls come after it.
 - Each call: your plan, and what each option costs, in outcomes and numbers, not code.
 - Plain language. Define each term on first use.
 - At most 5 open calls at a time. The others wait their turn.
@@ -47,7 +47,7 @@ Life also shapes by deletion: a hand gets its fingers when the cells between the
 ## Flow
 
 1. Get the facts. Search `${XDG_STATE_HOME:-$HOME/.local/state}/parley/` and the earlier records on the topic. A settled decision stays settled until the user opens it again.
-2. Sort the calls, and write them in the decisions file. A your call is taste, priority, or how it must work for the user: it has no answer until the user gives one. A my call is a choice that evidence can settle: its plan is yours, and one line of evidence goes in the `gains` of its plan option. A call that waits its turn goes into the file in the round that asks it.
+2. Sort the calls, and write them in the decisions file. A your call is taste, priority, or how it must work for the user: it has no answer until the user gives one. A my call is a choice that evidence can settle: its plan is yours, and one line of evidence goes in the `gains` of its plan option. A call that waits its turn goes into the file in the round that asks it. A call that adds a noun has, as option `a`, the option that reuses an existing noun. When your plan is another option, its `gains` give the evidence for it.
 3. Ask in the chat: the rundown, then the output of `decisions.mjs`. Its last line is the answer line that takes all your plans.
 4. Apply each answer line to the file. For `?N`, explain N first.
 5. When no call is open, the answers are the contract. Read back first only when an answer is in the user's own words or leaves your plan: the terms in your own words, with each answer, for his `ok` or his correction.
@@ -72,6 +72,8 @@ After each write, run the command below. It checks the file, and prints one erro
 ```sh
 node {baseDir}/decisions.mjs <slug>
 ```
+
+Above 9 decisions in an open file, the command also prints one warning line on stderr: the design grows by patches. Restate its nouns in one view, and offer a simpler design in the next round before you add a decision.
 
 - Apply each answer line to the file. A pick sets `answer` to its letter. An own answer sets `answer: "own"` and a short `label`. Put the user's exact words in `words`, never a summary.
 - At the contract, each decision has an answer. Set `status: "contract"` and `design_sense`: what the lenses changed in your plan, or `none`. The command then prints the path of the file in place of the answer line. Goals cite that path.
