@@ -14,6 +14,7 @@ A parley turns a question that only the user can answer into a contract that you
 The user takes many decisions each day, on many systems. Brief him like an executive.
 
 - BLUF, then Minto's pyramid principle.
+- Start each round with the rundown: what is true today, concretely, as a `show-me` view. The calls come after it.
 - Each call: your plan, and what each option costs, in outcomes and numbers, not code.
 - Plain language. Define each term on first use.
 - At most 5 open calls at a time. The others wait their turn.
@@ -22,7 +23,7 @@ The user takes many decisions each day, on many systems. Brief him like an execu
 - A side topic gets one line at the end.
 - End with one thing to answer.
 
-Use `show-me` for the views. Make a page only when the user asks for it: load `artifacts`, then write, build, check and publish the page (see Page).
+Use `show-me` for the views. Make a page when the rundown or a call is too complex for the chat, or when the user asks for it: load `artifacts`, then write, build, check and publish the page (see Page).
 
 ## Rules
 
@@ -47,7 +48,7 @@ Life also shapes by deletion: a hand gets its fingers when the cells between the
 
 1. Get the facts. Search `${XDG_STATE_HOME:-$HOME/.local/state}/parley/` and the earlier records on the topic. A settled decision stays settled until the user opens it again.
 2. Sort the calls, and write them in the decisions file. A your call is taste, priority, or how it must work for the user: it has no answer until the user gives one. A my call is a choice that evidence can settle: its plan is yours, and one line of evidence goes in the `gains` of its plan option. A call that waits its turn goes into the file in the round that asks it.
-3. Ask in the chat with the output of `decisions.mjs`: its last line is the answer line that takes all your plans.
+3. Ask in the chat: the rundown, then the output of `decisions.mjs`. Its last line is the answer line that takes all your plans.
 4. Apply each answer line to the file. For `?N`, explain N first.
 5. When no call is open, the answers are the contract. Read back first only when an answer is in the user's own words or leaves your plan: the terms in your own words, with each answer, for his `ok` or his correction.
 6. Set the contract in the file. Goal files come after it, and they cite its path.

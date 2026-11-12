@@ -27,7 +27,7 @@ Protect your context window. Do not implement multi-file features inline when a 
 
 ### Decide and execute alone ("end to end")
 
-1. **Work items and wave launch**: write work-item files from an agreed contract and start `ship` or `campaign` runs in dependency order.
+1. **Work items and wave launch**: write work-item files from an agreed contract and start `ship` or `campaign` runs in dependency order. A contract is a parley file with status `contract`, or an instruction of the user in this conversation that names the change. Each work item cites its contract.
 2. **Campaign split check**: when a `campaign` pauses after `split`, check that the items are 3 to 8 coherent vertical slices that each leave checks green. Reject splits that fragment one change into 20 micro-items.
 3. **Mechanical recovery on `waiting` runs**: when a campaign pauses because `judge` scored `< 1.00` or a fix round stopped, inspect the run directory (`round-<n>.patch`, `judge` findings, test output). When the production code passed review and the gap is mechanical (a missing test assertion, a missing README line, a missing commit body, or applying the saved patch), resume the run with the recovery instruction yourself.
 4. **Landing and housecleaning**: when a `ship` or `campaign` run finishes with `judge 1.00` and `0` findings:
@@ -35,12 +35,12 @@ Protect your context window. Do not implement multi-file features inline when a 
    - Land the branch onto `main` (or the target branch) with `git merge --ff-only` and push.
    - Verify that CI passes when a pull request or push workflow runs.
    - Run `workflows prune --yes` (or `workflows prune <run-id>... --yes` for stacked runs) so the worktree, local branch, and any `hc` space terminals (`herdr.space=<runId>`) are removed immediately.
-   - Start the next dependent wave.
+   - Start the next dependent wave when it has a contract. When it has none, do not start it: prepare the decision with `parley`, then wait. This holds also while the user is away: the leash is one contract long.
 5. **Local tool rebuilds mid-effort**: when a change in a local dependency is needed before the final release, pack from `main` (`npm pack --pack-destination /tmp`) and install into the local tool prefix instead of publishing a premature release.
 
 ### Pause and ask the user
 
-1. **Unsettled design, scope, or taste calls**: use `../parley/SKILL.md` (`${XDG_STATE_HOME:-$HOME/.local/state}/parley/<slug>.json`, plus an `../artifacts/SKILL.md` page when the call is big). Never invent repository conventions or unrequested setup hooks on your own.
+1. **Unsettled design, scope, or taste calls**: use `../parley/SKILL.md` (`${XDG_STATE_HOME:-$HOME/.local/state}/parley/<slug>.json`, plus an `../artifacts/SKILL.md` page when the call is big). Never invent repository conventions or unrequested setup hooks on your own. A call is yours when it is cheap to reverse and inside the contract. It is the user's when later work inherits it: where code lives, the rules of a new repository, a dependency or a runtime, a public interface, a new research thread.
 2. **Contract contradictions**: when `divergence` or a `judge` finding shows that the contract conflicts with reality or breaks a public boundary.
 3. **Release pull requests**: never merge a release pull request (`release: <version>`) unless the user explicitly tells you to merge it.
 
@@ -63,5 +63,5 @@ Tribal knowledge that stays only in your context window is lost at compaction. P
 ## Procedures and strategic loop
 
 - **Parley (`../parley/SKILL.md`)**: for any design or scope decision that belongs to the user. Keep decisions in `${XDG_STATE_HOME:-$HOME/.local/state}/parley/<slug>.json`.
-- **Retro (`../retro/SKILL.md`, when installed)**: run a retro on roughly one in five runs or driver sessions, picking first the runs that needed a fix round, failed the judge, or hit environment friction. Apply mechanical guardrail fixes (lint rules, type checks, test timeouts, `AGENTS.md` pointers) before the next wave.
+- **Retro (`../retro/SKILL.md`, when installed)**: propose a retro to the user on roughly one in five runs or driver sessions, picking first the runs that needed a fix round, failed the judge, or hit environment friction. Only the user starts the skill. Apply the fixes that the user chooses (lint rules, type checks, test timeouts, `AGENTS.md` pointers) before the next wave.
 - **Prompt optimization (`workflows optimize <workflow>`)**: after a batch of `ship` runs lands on `main` with preserved `result.head` commits, run `workflows optimize ship` to test candidate prompt or profile changes against saved runs. You pick what to try; `optimize` grades it.
