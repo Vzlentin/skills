@@ -23,7 +23,7 @@ The user takes many decisions each day, on many systems. Brief him like an execu
 - A side topic gets one line at the end.
 - End with one thing to answer.
 
-Use `show-me` for the views. Make a page when the rundown or a call is too complex for the chat, or when the user asks for it: load `artifacts`, then write, build, check and publish the page (see Page).
+Use `show-me` for the views. When the topic is something that the user looks at or drives (an app, a page, a CLI or a TUI), Round 1 is the page of its screens, made with no ask from him. The page starts with the rundown. Fill each screen with real data from his system: his runs, files, names and numbers. Never use placeholder text. When the thing does not exist yet, show a mock of each screen. For every other topic, make a page when the rundown or a call is too complex for the chat, or when the user asks for it. To make a page, load `artifacts`, then write, build, check and publish it (see Page).
 
 ## Rules
 
@@ -48,7 +48,7 @@ Life also shapes by deletion: a hand gets its fingers when the cells between the
 
 1. Get the facts. Search `${XDG_STATE_HOME:-$HOME/.local/state}/parley/` and the earlier records on the topic. A settled decision stays settled until the user opens it again.
 2. Sort the calls, and write them in the decisions file. A your call is taste, priority, or how it must work for the user: it has no answer until the user gives one. A my call is a choice that evidence can settle: its plan is yours, and one line of evidence goes in the `gains` of its plan option. A call that waits its turn goes into the file in the round that asks it. A call that adds a noun has, as option `a`, the option that reuses an existing noun. When your plan is another option, its `gains` give the evidence for it.
-3. Ask in the chat: the rundown, then the output of `decisions.mjs`. Its last line is the answer line that takes all your plans.
+3. Ask in the chat: the rundown, then the output of `decisions.mjs`. Its last line is the answer line that takes all your plans. When the topic is something that the user looks at or drives, Round 1 is the page of its screens, with the rundown at its top, and that output in the chat (see How you talk).
 4. Apply each answer line to the file. For `?N`, explain N first.
 5. When no call is open, the answers are the contract. Read back first only when an answer is in the user's own words or leaves your plan: the terms in your own words, with each answer, for his `ok` or his correction.
 6. Set the contract in the file. Goal files come after it, and they cite its path.
@@ -148,6 +148,7 @@ For a script or an app, `decisions.mjs` also exports its helpers. A bad file or 
 
 - `page.html` is HTML with the blocks of `artifacts` and `<decision n="N">…</decision>`, with no Markdown. It has no `<h1>`: the build writes the title and the goal.
 - `<decision n="3">…</decision>` places the block of decision 3 there. The block is a `.split`: its number, title, kind and tension, and the HTML inside the tag, in the main track, and its card in the side track. Put the view that explains the decision inside the tag. Do not put a `.split` inside a decision tag.
+- On the page of screens, ask each call on its screen: the `<decision n="N">` tag of the call holds the screen, or the part of it, that the call changes. The screen of a CLI or a TUI is its terminal text, for example in a `<pre class="code">` block.
 - The card: an open your call shows its options as buttons, with a badge on the plan. A my call or a decided call folds to one line with its plan or its answer: open it to change it. A decided call also shows its `label` and the user's `words`. Under `why`, the card shows the gains and costs of each option. A live card has "add a note" and "explain first".
 - `{?3}` is a blank: the answer to decision 3, or its plan while it is open. It follows the taps. Restate an answer only with a blank, and write no decided, open or next line: it goes stale at the first tap.
 - Any control in an Alpine scope can pick: `@click="$store.parley.pick(3, 'b')"`. A decision block is a scope.
