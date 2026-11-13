@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { applyAnswers, decisionsPath, listDecisions, parleyDir, readDecisions, writeDecisions } from "../skills/parley/decisions.mjs";
@@ -15,8 +15,11 @@ const fixture = JSON.parse(readFileSync(FIXTURE, "utf8"));
 const home = mkdtempSync(join(tmpdir(), "parley-decisions-"));
 const state = join(home, ".local/state/parley");
 const cases = join(home, "cases");
+// An empty bin folder for PATH: no test of the command reaches the real harness.
+const emptyBin = join(home, "empty-bin");
 mkdirSync(state, { recursive: true });
 mkdirSync(cases);
+mkdirSync(emptyBin);
 after(() => rmSync(home, { recursive: true, force: true }));
 
 // Written in the file order 1, 2, 4, 3, 5: the summary goes in the order of n.
@@ -89,7 +92,35 @@ function write(name, text) {
 }
 
 function run(...args) {
-	return spawnSync(process.execPath, [COMMAND, ...args], { env: { ...process.env, HOME: home, XDG_STATE_HOME: "" }, encoding: "utf8" });
+	return spawnSync(process.execPath, [COMMAND, ...args], {
+		env: { ...process.env, HOME: home, XDG_STATE_HOME: "", PATH: emptyBin, HARNESS_PROJECT: "" },
+		encoding: "utf8",
+	});
+}
+
+// Runs the command in cwd, with its own state folder, PATH and HARNESS_PROJECT. It writes text as the file of slug
+// first, and returns the result with the text of the file after the run.
+function runProject({ slug = "stack-070", text, path = emptyBin, project = "", cwd = home }) {
+	const xdg = mkdtempSync(join(home, "xdg-"));
+	const file = join(xdg, "parley", `${slug}.json`);
+	mkdirSync(dirname(file));
+	writeFileSync(file, text);
+	const result = spawnSync(process.execPath, [COMMAND, slug], {
+		cwd,
+		env: { ...process.env, HOME: home, XDG_STATE_HOME: xdg, PATH: path, HARNESS_PROJECT: project },
+		encoding: "utf8",
+	});
+	return { ...result, file, after: readFileSync(file, "utf8") };
+}
+
+// A bin folder with a harness script that prints the lines and exits with code.
+function fakeHarness(lines, code = 0) {
+	const bin = mkdtempSync(join(home, "bin-"));
+	const script = join(bin, "harness");
+	const body = lines.map((line) => `printf '%s\\n' '${line}'`).join("\n");
+	writeFileSync(script, `#!/bin/sh\n${body}\nexit ${code}\n`);
+	chmodSync(script, 0o755);
+	return bin;
 }
 
 // Sets each variable of env, or deletes it when its value is undefined.
@@ -450,4 +481,98 @@ test("applyAnswers with a gap in the words of an update throws one line", () => 
 	words[1] = "b, one note is enough";
 	assert.throws(() => applyAnswers(OPEN, [{ n: 4, answer: "b", words }]), oneLine("stack-070: decisions[2].words[0]: "));
 	assert.throws(() => applyAnswers(OPEN, [{ n: 1, answer: "b", words }]), oneLine("stack-070: decisions[0].words[0]: "));
+});
+
+const OPEN_TEXT = JSON.stringify(OPEN, null, 2);
+const OPEN_SUMMARY = `stack-070 · open · stack 070 roadmap
+1 · Wave order · your call · open · plan a · harness, then workflows
+2 · Lock file · your call · open · plan b · in the state folder
+3 · Stale lock · my call · open · plan a · a dead PID is taken over
+4 · Release notes · your call · open · plan a · one note per wave
+5 · Docs · your call · own · the README only
+[stack-070] 1a 2b 4a ok
+`;
+
+// The text of OPEN with only the project key added, first.
+function withProjectText(project) {
+	return OPEN_TEXT.replace(/^\{\n {2}/, `{\n  "project": ${JSON.stringify(project)},\n  `);
+}
+
+// Folders that exist, as realpaths: process.cwd() gives the real path, and the macOS tmpdir is under a symlink.
+const tree = realpathSync(mkdtempSync(join(home, "tree-")));
+const dirA = join(tree, "a");
+const dirB = join(dirA, "b");
+const dirC = join(dirB, "c");
+const elsewhere = join(tree, "z");
+mkdirSync(dirC, { recursive: true });
+mkdirSync(elsewhere);
+const projects = fakeHarness([`alpha  ${dirA}`, `beta  ${dirB}`, "main"]);
+
+test("an open file with a project passes", () => {
+	const path = join(cases, "stack-070.json");
+	writeFileSync(path, JSON.stringify({ project: "x", ...OPEN }, null, 2));
+	assert.equal(readDecisions(path).project, "x");
+});
+
+test("a project that is empty or not a string fails", () => {
+	for (const project of ["", 7]) {
+		const path = join(cases, "stack-070.json");
+		writeFileSync(path, JSON.stringify({ ...OPEN, project }, null, 2));
+		assert.throws(() => readDecisions(path), { message: `${path}: project: expected a string that is not empty` });
+	}
+});
+
+test("the command records HARNESS_PROJECT before the harness projects, and changes no other byte", () => {
+	const result = runProject({ text: OPEN_TEXT, path: projects, project: "from-env", cwd: dirC });
+	assert.equal(result.status, 0, result.stderr);
+	assert.equal(result.stdout, OPEN_SUMMARY);
+	assert.equal(result.after, withProjectText("from-env"));
+});
+
+test("the command records the project with the longest folder that holds the current folder", () => {
+	const result = runProject({ text: OPEN_TEXT, path: projects, cwd: dirC });
+	assert.equal(result.status, 0, result.stderr);
+	assert.equal(result.after, withProjectText("beta"));
+});
+
+test("the command records main when no project folder holds the current folder", () => {
+	const result = runProject({ text: OPEN_TEXT, path: projects, cwd: elsewhere });
+	assert.equal(result.status, 0, result.stderr);
+	assert.equal(result.after, withProjectText("main"));
+});
+
+test("the command keeps the compact style of the file", () => {
+	const text = JSON.stringify(OPEN);
+	const result = runProject({ text, project: "x" });
+	assert.equal(result.after, `{"project":"x",${text.slice(1)}`);
+});
+
+test("the command changes no file when harness fails or is not there", () => {
+	const failing = runProject({ text: OPEN_TEXT, path: fakeHarness([`alpha  ${dirA}`], 1), cwd: dirC });
+	assert.equal(failing.status, 0, failing.stderr);
+	assert.equal(failing.stderr, "");
+	assert.equal(failing.after, OPEN_TEXT);
+	const missing = runProject({ text: OPEN_TEXT, cwd: dirC });
+	assert.equal(missing.status, 0, missing.stderr);
+	assert.equal(missing.stderr, "");
+	assert.equal(missing.stdout, OPEN_SUMMARY);
+	assert.equal(missing.after, OPEN_TEXT);
+});
+
+test("the command changes no file that has a project, and no contract", () => {
+	const owned = JSON.stringify({ project: "old", ...OPEN }, null, 2);
+	const kept = runProject({ text: owned, project: "new" });
+	assert.equal(kept.status, 0, kept.stderr);
+	assert.equal(kept.after, owned);
+	const contract = readFileSync(FIXTURE, "utf8");
+	const result = runProject({ slug: "artifacts-retro", text: contract, project: "new" });
+	assert.equal(result.status, 0, result.stderr);
+	assert.equal(result.after, contract);
+});
+
+test("the command changes no file when the project is not plain text", () => {
+	const result = runProject({ text: OPEN_TEXT, project: "a`b" });
+	assert.equal(result.status, 0, result.stderr);
+	assert.equal(result.stderr, "");
+	assert.equal(result.after, OPEN_TEXT);
 });

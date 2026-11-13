@@ -82,7 +82,7 @@ Above 9 decisions in an open file, the command also prints one warning line on s
 
 The fields. A key that is not in this list is an error.
 
-- Top level: `slug` (lowercase words with hyphens, the file name), `status` (`"open"` or `"contract"`), `title`, `goal` and `decisions`. Optional: `evidence` (a list of strings) and `design_sense`.
+- Top level: `slug` (lowercase words with hyphens, the file name), `status` (`"open"` or `"contract"`), `title`, `goal` and `decisions`. Optional: `project`, `evidence` (a list of strings) and `design_sense`. `project` is the harness project: the command writes it in an open file, and you do not write it.
 - A decision: `n`, `title`, `kind` (`"your call"` or `"my call"`), `options` and `plan` (the key of an option). Optional: `tension`, `answer` (the key of an option, or `"own"`), `label` (required with `"own"`) and `words` (a list of strings).
 - An option: `key` (one lowercase letter) and `label`. Optional: `gains` and `costs` (lists of strings).
 - Strings are plain text: no Markdown, no backtick and no `**`. Only `words` keeps them, as the user wrote them. No string or list is empty: leave out an optional key in its place.

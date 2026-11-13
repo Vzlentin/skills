@@ -8,9 +8,12 @@
 // An open file with more than 9 decisions also gives one warning line on stderr, before the state, with the number:
 // restate the design as its nouns, and simplify it before the next round. A contract gives no warning. The warning does
 // not change stdout or the exit code.
+// In an open file with no project, it first records the harness project: $HARNESS_PROJECT when it is set and not
+// empty, else the project of the current folder that `harness projects` gives. Without harness, the file stays as it is.
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const KEY = /^[a-z]$/;
@@ -116,16 +119,18 @@ class Invalid extends Error {}
 // The schema. A key that it does not name is an error at every level. Each string is plain text, and no string or
 // list is empty: a file leaves out an optional key in its place. Each loop visits a gap in a list as undefined, so a
 // gap fails here: forEach skips a gap, and JSON.stringify writes it as null.
-// Top level: slug, status, title, goal and decisions. Optional: evidence, and design_sense, which a contract needs.
+// Top level: slug, status, title, goal and decisions. Optional: project, the harness project, evidence, and
+// design_sense, which a contract needs.
 function checkFile(data, name) {
 	if (!isObject(data)) throw new Invalid("expected a JSON object");
-	checkKeys(data, "", ["slug", "status", "title", "goal", "decisions"], ["evidence", "design_sense"]);
+	checkKeys(data, "", ["slug", "status", "title", "goal", "decisions"], ["project", "evidence", "design_sense"]);
 	checkText(data.slug, "slug");
 	if (!SLUG.test(data.slug)) fail("slug", "expected lowercase words with hyphens");
 	if (data.slug !== name) fail("slug", `expected ${name}, the file name without .json`);
 	checkChoice(data.status, "status", STATUSES);
 	checkText(data.title, "title");
 	checkText(data.goal, "goal");
+	if (Object.hasOwn(data, "project")) checkText(data.project, "project");
 	if (Object.hasOwn(data, "evidence")) checkTexts(data.evidence, "evidence");
 	if (Object.hasOwn(data, "design_sense")) checkText(data.design_sense, "design_sense");
 	else if (data.status === "contract") fail("design_sense", "expected a string, as the status is contract");
@@ -244,6 +249,52 @@ export function shownLabel(decision) {
 	return decision.options.find((option) => option.key === key).label;
 }
 
+// The harness project: $HARNESS_PROJECT when it is set and not empty, else the project whose folder holds the current
+// folder, the longest folder first, or main. undefined when harness is not there or fails.
+function harnessProject() {
+	if (process.env.HARNESS_PROJECT) return process.env.HARNESS_PROJECT;
+	let output;
+	try {
+		output = execFileSync("harness", ["projects"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 });
+	} catch {
+		return undefined;
+	}
+	const cwd = process.cwd();
+	let found;
+	for (const line of output.split("\n")) {
+		const match = /^(\S+) +(.+)$/.exec(line);
+		if (!match) continue;
+		const [, name, dir] = match;
+		const inside = cwd === dir || cwd.startsWith(dir.endsWith(sep) ? dir : dir + sep);
+		if (inside && (!found || dir.length > found.dir.length)) found = { name, dir };
+	}
+	return found ? found.name : "main";
+}
+
+// The text with "project" as its first key, after the first {. Each other byte stays as it is.
+function withProject(text, project) {
+	const match = /^([^{]*\{)(\s*)/.exec(text);
+	const between = match[2] ? `,${match[2]}` : ",";
+	const colon = match[2] ? ": " : ":";
+	return `${match[1]}${match[2]}"project"${colon}${JSON.stringify(project)}${between}${text.slice(match[0].length)}`;
+}
+
+// Records the harness project in an open file that has none. A value that the schema refuses, or a failed write,
+// leaves the file as it is.
+function recordProject(path, data) {
+	if (data.status !== "open" || Object.hasOwn(data, "project")) return;
+	const project = harnessProject();
+	if (project === undefined) return;
+	try {
+		const text = withProject(readFileSync(path, "utf8"), project);
+		const next = JSON.parse(text);
+		check(path, () => checkFile(next, basename(path, ".json")));
+		writeFileSync(path, text);
+	} catch {
+		// The project is an extra: the parley goes on without it.
+	}
+}
+
 if (import.meta.main) {
 	const slug = process.argv[2];
 	if (!slug) {
@@ -261,5 +312,6 @@ if (import.meta.main) {
 	if (data.status === "open" && data.decisions.length > DECISION_LIMIT) {
 		console.error(`Warning: ${data.decisions.length} decisions, more than ${DECISION_LIMIT}. Before the next round, restate the design as its nouns in one view, and simplify it`);
 	}
+	recordProject(path, data);
 	console.log(summary(data, path));
 }
