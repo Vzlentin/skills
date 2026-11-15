@@ -87,6 +87,10 @@ const LAYOUT = `(() => {
 	};
 	walk(main);
 
+	const clippedCode = [...main.querySelectorAll(".main pre.code, .split > :first-child pre.code")]
+		.filter((pre) => pre.scrollWidth > pre.clientWidth + 2)
+		.map((pre) => Math.round(pre.scrollWidth - pre.clientWidth) + " px overflow in pre.code: " + snippet(pre, 40));
+
 	const probe = main.appendChild(document.createElement("div"));
 	probe.className = "split";
 	probe.append(document.createElement("div"), document.createElement("div"));
@@ -94,6 +98,7 @@ const LAYOUT = `(() => {
 	probe.remove();
 	const layout = {
 		off,
+		clippedCode,
 		twoTracks: second.left > first.right,
 		width: Math.round(right - left),
 		page: style.getPropertyValue("--page").trim(),
@@ -241,7 +246,12 @@ try {
 		problems++;
 		console.log(`outside code: ${outside.join(", ")}. Use the global Lit and kit, and put other code in a script of the page`);
 	}
-	const { off } = layout;
+	const { off, clippedCode = [] } = layout;
+	if (clippedCode.length) {
+		problems++;
+		console.log(`clipped code: ${clippedCode.length} pre.code blocks in the main track overflow horizontally at ${LAPTOP[0]} px:`);
+		for (const item of clippedCode.slice(0, 8)) console.log(`  ${item}`);
+	}
 	if (off.length) {
 		problems++;
 		console.log(`off the column: ${off.length} parts at ${LAPTOP[0]} px do not start at its left edge, or end past its right edge (offsets from the edges):`);

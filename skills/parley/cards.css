@@ -1,5 +1,6 @@
 /* The parts of a parley page: the blanks and the decision blocks. artifacts lays out the page and gives the bar. */
 .blank{display:inline-block;text-decoration:none;color:var(--fg);border:1px dashed var(--warning);border-radius:7px;padding:0 6px;line-height:1.5;margin:1px 0}
+.card .blank,.stepper .blank{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
 .blank sup{font:600 10px var(--mono);color:var(--muted);margin-left:3px}
 .blank.plan{border:1px solid var(--border-muted);color:var(--text)}
 .blank.set{border:1px solid var(--accent);background:var(--selected-bg)}

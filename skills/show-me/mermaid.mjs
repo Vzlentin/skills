@@ -83,6 +83,11 @@ if (import.meta.main) {
 		process.exit(1);
 	}
 	console.log(output);
+	const svgText = readFileSync(output, "utf8");
+	const dims = Object.fromEntries([...svgText.slice(0, svgText.indexOf(">")).matchAll(SIZE)].map(([, k, v]) => [k, Number(v)]));
+	if ((dims.width > 3000 && dims.width / dims.height > 3.5) || (dims.height > 2500 && dims.height / dims.width > 2.2)) {
+		console.error(`Warning: extreme SVG aspect ratio ${Math.round(dims.width)}x${Math.round(dims.height)}; avoid subgraph blocks with cross-subgraph edges in Pele, or switch LR/TB`);
+	}
 	if (png) {
 		// A final .svg becomes .png, and any other name gets .png at its end, so the PNG never takes the place of the SVG.
 		const pngFile = `${output.replace(/\.svg$/i, "")}.png`;
