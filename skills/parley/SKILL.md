@@ -9,17 +9,24 @@ A parley turns a question that only the user can answer into a contract that you
 
 `{baseDir}` is the directory of this `SKILL.md`.
 
+## Where the parley lives
+
+- When your tools include `parley`, the parley lives in the harness store, where Orda and the answer line read it. Use the tool for each step: `round` asks the calls and sets the frame, `answer` applies an answer line, `drop` drops a call, and the read-back is an ask with no options, whose `ok` makes the contract. Give `design_sense` in the round of the read-back. Write no decisions file, and do not run `decisions.mjs`. The text that the tool gives is the state of the turn. Each answer gives you a todo `Save to the vault: <title>`: close it before the parley ends, with a note in the vault and `parley note`, as the tool says.
+- Without the tool, the parley lives in its decisions file (see Decisions file).
+
+Below, "the parley" is the store or the file, whichever holds it.
+
 ## How you talk
 
 The user takes many decisions each day, on many systems. Brief him like an executive.
 
 - BLUF, then Minto's pyramid principle.
 - Start each round with the rundown: what is true today, concretely, as a `show-me` view. From the second round, the rundown includes the design as its nouns, in one view: its objects, stores, agents, prompts and steps. The calls come after it.
-- Each call: your plan, and what each option costs, in outcomes and numbers, not code.
+- Each call: every option with what it gains and costs, in outcomes and numbers, not code, and which option is your plan. The state lines give only the plan: never let them stand in for the options.
 - Plain language. Define each term on first use.
 - When the user thinks aloud, or says that a question is still open, do not answer with a design. Say back what you heard, in his words and in 5 lines at most, and ask one question. Add no noun that he did not use. Propose a design when he asks for one, or after he confirms what you said back.
 - At most 5 open calls at a time. The others wait their turn.
-- Each turn in the chat, give the state: the output of `decisions.mjs` (see Decisions file), then what comes next.
+- Each turn in the chat, list each open call with all of its options, then give the state: the text of the `parley` tool, or the output of `decisions.mjs`, then what comes next.
 - Each round builds on the last one. When a view you already showed changes, show that same view again, updated, with the change highlighted.
 - A side topic gets one line at the end.
 - End with one thing to answer.
@@ -28,7 +35,7 @@ Use `show-me` for the views. When the topic is something that the user looks at 
 
 ## Rules
 
-- Do not make the user repeat himself. Read the decisions files, the earlier records and the memory first, when they exist.
+- Do not make the user repeat himself. Read the earlier parleys (`parley list`, or the decisions files), the earlier records and the memory first, when they exist.
 - Get the facts yourself. Ask the user only what only he can answer.
 
 ## Design sense
@@ -47,12 +54,12 @@ Life also shapes by deletion: a hand gets its fingers when the cells between the
 
 ## Flow
 
-1. Get the facts. Search `${XDG_STATE_HOME:-$HOME/.local/state}/parley/` and the earlier records on the topic. A settled decision stays settled until the user opens it again.
-2. Sort the calls, and write them in the decisions file. A your call is taste, priority, or how it must work for the user: it has no answer until the user gives one. A my call is a choice that evidence can settle: its plan is yours, and one line of evidence goes in the `gains` of its plan option. A call that waits its turn goes into the file in the round that asks it. A call that adds a noun has, as option `a`, the option that reuses an existing noun. When your plan is another option, its `gains` give the evidence for it.
-3. Ask in the chat: the rundown, then the output of `decisions.mjs`. Its last line is the answer line that takes all your plans. When the topic is something that the user looks at or drives, Round 1 is the page of its screens, with the rundown at its top, and that output in the chat (see How you talk).
-4. Apply each answer line to the file. For `?N`, explain N first.
+1. Get the facts. Search the earlier parleys and records on the topic. A settled decision stays settled until the user opens it again. When a call is about a failure, read its primary source first (the run log, the session, the error) and find its cause. Put the cause in the view or the tension of the call, and build the options on it, not on a summary of the failure.
+2. Sort the calls, and write them in the parley. A your call is taste, priority, or how it must work for the user: it has no answer until the user gives one. A my call is a choice that evidence can settle: its plan is yours, and one line of evidence goes in the `gains` of its plan option. A call that waits its turn goes into the parley in the round that asks it. A call that adds a noun has, as option `a`, the option that reuses an existing noun. When your plan is another option, its `gains` give the evidence for it.
+3. Ask in the chat: the rundown, each call with all of its options, then the state. Its last line is the answer line that takes all your plans. When the topic is something that the user looks at or drives, Round 1 is the page of its screens, with the rundown at its top, and the state in the chat (see How you talk).
+4. Apply each answer line to the parley. For `?N`, explain N first.
 5. When no call is open, the answers are the contract. Read back first only when an answer is in the user's own words or leaves your plan: the terms in your own words, with each answer, for his `ok` or his correction.
-6. Set the contract in the file. Goal files come after it, and they cite its path.
+6. Set the contract in the parley. Goal files come after it, and they cite its slug (`harness parley show <slug>`) or the path of its file.
 
 ## Answer line
 
@@ -66,7 +73,7 @@ Life also shapes by deletion: a hand gets its fingers when the cells between the
 
 ## Decisions file
 
-Each parley has one file, `${XDG_STATE_HOME:-$HOME/.local/state}/parley/<slug>.json`. It is the source of truth from Round 1 to the contract, and the only copy of the decisions. Write each decision once, in the file. Write the file yourself, and create the folder when it is missing.
+Without the `parley` tool, each parley has one file, `${XDG_STATE_HOME:-$HOME/.local/state}/parley/<slug>.json`. It is the source of truth from Round 1 to the contract, and the only copy of the decisions. Write each decision once, in the file. Write the file yourself, and create the folder when it is missing.
 
 After each write, run the command below. It checks the file, and prints one error line when the file is wrong. Its output is the state of the turn: one line for each decision, then the answer line that takes all your plans. Show it in the chat, and do not type the decisions again.
 
@@ -145,7 +152,7 @@ For a script or an app, `decisions.mjs` also exports its helpers. A bad file or 
 
 `artifacts` owns the page: its layout, colors, check and bar. parley adds the decisions. Lay out, in order: what is true today, concretely; the options; then what he needs to answer.
 
-`build.mjs` builds the page from the decisions file. The page has the title and the goal of the file, then `/tmp/pages/<slug>/page.html` when it exists, then the block of each decision that no tag places, in the order of `n`. With no `page.html`, the page has the title, the goal and every decision.
+`build.mjs` builds the page from the decisions file, or with `--store` from the parley of the harness store (`harness parley show <slug> --json`). The page has the title and the goal of the parley, then `/tmp/pages/<slug>/page.html` when it exists, then the block of each decision that no tag places, in the order of `n`. With no `page.html`, the page has the title, the goal and every decision.
 
 - `page.html` is HTML with the blocks of `artifacts` and `<decision n="N">…</decision>`, with no Markdown. It has no `<h1>`: the build writes the title and the goal.
 - `<decision n="3">…</decision>` places the block of decision 3 there. The block is a `.split`: its number, title, kind and tension, and the HTML inside the tag, in the main track, and its card in the side track. Put the view that explains the decision inside the tag. Do not put a `.split` inside a decision tag.
@@ -155,11 +162,12 @@ For a script or an app, `decisions.mjs` also exports its helpers. A bad file or 
 - Any control in an Alpine scope can pick: `@click="$store.parley.pick(3, 'b')"`. A decision block is a scope.
 - A diagram is the `<diagram>` block of `artifacts`, with an SVG from `show-me` (`mermaid.mjs --large`) in the folder of `page.html`.
 - A live page ends with the bar of `artifacts`: Copy gives the answer line, and Clear takes back the taps and notes. The share copy and a contract file have no cards to answer and no bar.
-- An invalid decisions file, a tag that names no decision, a decision placed two times, or a missing diagram file stops the build with one error line.
+- An invalid decisions file, an error of `harness`, a tag that names no decision, a decision placed two times, or a missing diagram file stops the build with one error line.
 
-The decisions are only in the decisions file: `page.html` holds no option, plan or answer. After each answer, apply it to the file, run `decisions.mjs`, then build the page again. The page is disposable.
+The decisions are only in the parley: `page.html` holds no option, plan or answer. After each answer, apply it to the parley, then build the page again. The page is disposable.
 
 ```sh
 node {baseDir}/build.mjs <slug> [out.html]   # /tmp/pages/<slug>/index.html
+node {baseDir}/build.mjs --store <slug>      # the parley of the harness store
 node {baseDir}/build.mjs --share <slug>      # share.html: a light copy
 ```
