@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-// Builds the page of a parley from its decisions file, ${XDG_STATE_HOME:-$HOME/.local/state}/parley/<slug>.json, which decisions.mjs reads,
-// or with --store from the parley of the harness store, which `harness parley show <slug> --json` gives.
-// Usage: build.mjs [--share] [--store] <slug> [out.html]
-// The page: the title and the goal of the parley, then /tmp/pages/<slug>/page.html when it exists, then the block of each
+// Builds the page of a parley from its decisions file, ${XDG_STATE_HOME:-$HOME/.local/state}/parley/<slug>.json, which decisions.mjs reads.
+// Usage: build.mjs [--share] <slug> [out.html]
+// The page: the title and the goal of the file, then /tmp/pages/<slug>/page.html when it exists, then the block of each
 // decision that no tag places, in the order of n.
 // - page.html is HTML with the building blocks of artifacts, with no Markdown.
 // - <decision n="3">…</decision> places the block of decision 3 there. The block holds two tracks: the number, title,
@@ -10,7 +9,6 @@
 // - {?3} is a blank: the answer to decision 3, or its plan while it is open.
 // A contract file and the share copy have no interactive part.
 // The page goes to /tmp/pages/<slug>/index.html, or share.html with --share. It comes from artifacts, with the bar of the way back on a live page.
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -29,15 +27,15 @@ const flags = new Set(process.argv.slice(2).filter((arg) => arg.startsWith("--")
 const [slug, outPath] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 const share = flags.has("--share");
 if (!slug) {
-	console.error("usage: build.mjs [--share] [--store] <slug> [out.html]");
+	console.error("usage: build.mjs [--share] <slug> [out.html]");
 	process.exit(2);
 }
 
 let file;
 try {
-	file = flags.has("--store") ? storeParley(slug) : readDecisions(decisionsPath(slug));
+	file = readDecisions(decisionsPath(slug));
 } catch (error) {
-	console.error(error.stderr?.toString().trim() || error.message);
+	console.error(error.message);
 	process.exit(1);
 }
 // The contract and the share copy are read, not answered: they have no interactive part.
@@ -78,19 +76,6 @@ const decided = data.decisions.filter((d) => d.decided).length;
 console.log(`${page.target} ${page.bytes} bytes, ${decisions.length} decisions (${decided} decided, ${placed.size} placed), colors: ${page.colors}`);
 
 // ---------------------------------------------------------------- data
-
-// The parley `slug` of the harness store, in the shape of a decisions file: each ask with options that is not dropped
-// is a decision, and the read-back, the ask with no options, is left out. The harness host checked the data.
-function storeParley(slug) {
-	const { parley, asks } = JSON.parse(execFileSync("harness", ["parley", "show", slug, "--json"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
-	const decisions = asks
-		.filter((ask) => ask.options !== undefined && ask.state !== "dropped")
-		.map((ask) => {
-			const keys = ["title", "kind", "tension", "options", "plan", ...(ask.state === "answered" ? ["answer", "label", "words"] : [])];
-			return { n: ask.parley.n, ...Object.fromEntries(keys.filter((key) => ask[key] !== undefined).map((key) => [key, ask[key]])) };
-		});
-	return { slug: parley.slug, status: parley.status === "open" ? "open" : "contract", title: parley.title, goal: parley.goal, decisions };
-}
 
 // What state.mjs and cards.js read of a decision. whose: "your" or "my". answer: the key of the pick, or null for an
 // own answer. shown: what the card and its blanks show before the user taps: the answer, or the plan while it is open.

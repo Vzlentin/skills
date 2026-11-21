@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -152,52 +152,6 @@ test("the contract of the fixture builds with its 11 decisions and no interactiv
 	assert.match(block(result.html, 10), /decided<\/span>: <b>the state folder, ~\/\.local\/state\/parley\/&lt;slug&gt;\.json<\/b>/);
 	assert.match(block(result.html, 10), /<p>one file with 9: the file of the first round/);
 	assert.match(block(result.html, 10), /<blockquote><p>\[artifacts-retro\] 1a 2b 3a ok<\/p>/);
-});
-
-// A harness on PATH that prints the reply of `harness parley show <slug> --json`: decision 1 of DECISIONS as an open
-// ask, 3 as an answered ask, a dropped ask, and the read-back with no options.
-function storeBuild(name, parleyStatus) {
-	const slug = `${prefix}-${name}`;
-	slugs.push(slug);
-	const { n: _one, ...one } = DECISIONS[1];
-	const { n: _three, ...three } = DECISIONS[2];
-	const asks = [
-		{ id: 7, asker: "pi-1", parley: { id: 4, n: 1 }, state: "open", ...one, view: "Who owns it" },
-		{ id: 8, asker: "pi-1", parley: { id: 4, n: 2 }, state: "dropped", title: "Gone", kind: "my call", options: [{ key: "a", label: "x" }], plan: "a" },
-		{ id: 9, asker: "pi-1", parley: { id: 4, n: 3 }, state: "answered", author: { kind: "user" }, ...three },
-		{ id: 10, asker: "pi-1", parley: { id: 4, n: 4 }, state: parleyStatus === "open" ? "open" : "answered", title: "Read-back", ...(parleyStatus === "open" ? {} : { author: { kind: "user" }, answer: "ok" }) },
-	];
-	const reply = { parley: { id: 4, slug, status: parleyStatus, title: "install lock", goal: "One lock.", asker: "pi-1" }, asks };
-	const bin = join(home, `bin-${name}`);
-	mkdirSync(bin, { recursive: true });
-	writeFileSync(join(bin, "reply.json"), JSON.stringify(reply));
-	writeFileSync(join(bin, "harness"), `#!/bin/sh\n[ "$*" = "parley show ${slug} --json" ] || { echo "Unknown parley: $3" >&2; exit 1; }\ncat "${join(bin, "reply.json")}"\n`);
-	chmodSync(join(bin, "harness"), 0o755);
-	mkdirSync(join("/tmp/pages", slug), { recursive: true });
-	const env = { ...process.env, HOME: home, XDG_STATE_HOME: "", PAGES_NO_PI: "1", PATH: `${bin}:${process.env.PATH}` };
-	const result = spawnSync(process.execPath, [BUILD, "--store", slug], { env, encoding: "utf8" });
-	const out = join("/tmp/pages", slug, "index.html");
-	return { ...result, html: existsSync(out) ? readFileSync(out, "utf8") : undefined };
-}
-
-test("with --store, the page comes from the parley of the harness store, with no dropped ask and no read-back", () => {
-	const result = storeBuild("store", "open");
-	assert.equal(result.status, 0, result.stderr);
-	const order = [...result.html.matchAll(/<section class="split decision" id="d-(\d+)"/g)].map((match) => match[1]);
-	assert.deepEqual(order, ["1", "3"]);
-	assert.match(why(result.html, 1), /<span class="cost">two installs can race<\/span>/);
-	assert.match(block(result.html, 3), /decided<\/span>: <b[^>]*>in the repository<\/b>/);
-	assert.match(result.html, /id="parley-data"/);
-	assert.match(result.stdout, /2 decisions \(1 decided, 0 placed\)/);
-});
-
-test("with --store, a contract has no interactive part, and an error of harness stops the build with its line", () => {
-	const contract = storeBuild("store-contract", "contract");
-	assert.equal(contract.status, 0, contract.stderr);
-	assert.doesNotMatch(contract.html, /id="parley-data"|\$store\.parley/);
-	const result = spawnSync(process.execPath, [BUILD, "--store", `${prefix}-nope`], { env: { ...process.env, PATH: `${join(home, "bin-store")}:${process.env.PATH}` }, encoding: "utf8" });
-	assert.equal(result.status, 1);
-	assert.equal(result.stderr, `Unknown parley: ${prefix}-nope\n`);
 });
 
 test("the share copy has no interactive part", () => {

@@ -246,7 +246,7 @@ function answered(decision) {
 export function shownLabel(decision) {
 	if (decision.answer === "own") return decision.label;
 	const key = Object.hasOwn(decision, "answer") ? decision.answer : decision.plan;
-	return decision.options.find((option) => option.key === key)?.label ?? "";
+	return decision.options.find((option) => option.key === key).label;
 }
 
 // The harness project: $HARNESS_PROJECT when it is set and not empty, else the project whose folder holds the current
