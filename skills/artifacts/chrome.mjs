@@ -14,10 +14,17 @@ export async function startChrome() {
 	const path = findChrome();
 	const profile = mkdtempSync(join(tmpdir(), "chrome-"));
 	const chrome = spawn(path, ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "about:blank"], { stdio: "ignore" });
+	// Chrome and its helpers can still write to the profile for a moment after the main process exits,
+	// so the removal tries again on ENOTEMPTY and EBUSY.
 	const stop = async () => {
-		chrome.kill();
-		await sleep(200);
-		rmSync(profile, { recursive: true, force: true });
+		if (chrome.exitCode === null && chrome.signalCode === null) {
+			const exited = once(chrome, "exit");
+			chrome.kill();
+			const timer = setTimeout(() => chrome.kill("SIGKILL"), 5000);
+			await exited;
+			clearTimeout(timer);
+		}
+		rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 	};
 	try {
 		await once(chrome, "spawn");
