@@ -106,6 +106,13 @@ When the body has a `<w-…>` tag, the page gets Lit (`{baseDir}/vendor/lit.min.
 Ready widgets are in `{baseDir}/widgets/`: the page gets `widgets/w-<name>.js` for each `<w-name>` tag. Use them as tags, with no script.
 
 - `<w-aside>The question that the reader asks here</w-aside>`: answer it in the text after it.
+- `<w-parley></w-parley>`: the asks of a parley as cards. An open ask shows its options, with the plan chosen. A settled ask shows its decision first. A parley page is the rundown, then one `<w-parley>`.
+  - In a host that has `readAsks` and `sendAnswers`, the widget reads the asks, and one Send sends the answers of the open asks.
+  - In other hosts, the widget reads the asks from a block inside the tag, and Copy gives the answer line. Put in the block the `{ parley, asks }` that `readAsks` gives, as JSON. Write each `<` as `\u003c`:
+
+```html
+<w-parley><script type="application/json">{"parley": {"slug": "install-lock", "status": "open", ...}, "asks": [...]}</script></w-parley>
+```
 
 A new widget goes in a `<script type="module">` of the page. It extends `kit.Widget` and uses the global `Lit` and `kit`, with no import from a URL. Each module script has its own scope, so two widgets can use the same names.
 
