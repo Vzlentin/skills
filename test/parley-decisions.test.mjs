@@ -93,12 +93,12 @@ function write(name, text) {
 
 function run(...args) {
 	return spawnSync(process.execPath, [COMMAND, ...args], {
-		env: { ...process.env, HOME: home, XDG_STATE_HOME: "", PATH: emptyBin, HARNESS_PROJECT: "" },
+		env: { ...process.env, HOME: home, XDG_STATE_HOME: "", PATH: emptyBin, HARNESS_HOST: "" },
 		encoding: "utf8",
 	});
 }
 
-// Runs the command in cwd, with its own state folder, PATH and HARNESS_PROJECT. It writes text as the file of slug
+// Runs the command in cwd, with its own state folder, PATH and HARNESS_HOST. It writes text as the file of slug
 // first, and returns the result with the text of the file after the run.
 function runProject({ slug = "stack-070", text, path = emptyBin, project = "", cwd = home }) {
 	const xdg = mkdtempSync(join(home, "xdg-"));
@@ -107,7 +107,7 @@ function runProject({ slug = "stack-070", text, path = emptyBin, project = "", c
 	writeFileSync(file, text);
 	const result = spawnSync(process.execPath, [COMMAND, slug], {
 		cwd,
-		env: { ...process.env, HOME: home, XDG_STATE_HOME: xdg, PATH: path, HARNESS_PROJECT: project },
+		env: { ...process.env, HOME: home, XDG_STATE_HOME: xdg, PATH: path, HARNESS_HOST: project },
 		encoding: "utf8",
 	});
 	return { ...result, file, after: readFileSync(file, "utf8") };
@@ -118,7 +118,7 @@ function fakeHarness(lines, code = 0) {
 	const bin = mkdtempSync(join(home, "bin-"));
 	const script = join(bin, "harness");
 	const body = lines.map((line) => `printf '%s\\n' '${line}'`).join("\n");
-	writeFileSync(script, `#!/bin/sh\n${body}\nexit ${code}\n`);
+	writeFileSync(script, `#!/bin/sh\n[ "$1" = hosts ] || exit 2\n${body}\nexit ${code}\n`);
 	chmodSync(script, 0o755);
 	return bin;
 }
@@ -506,7 +506,7 @@ const dirC = join(dirB, "c");
 const elsewhere = join(tree, "z");
 mkdirSync(dirC, { recursive: true });
 mkdirSync(elsewhere);
-const projects = fakeHarness([`alpha  ${dirA}`, `beta  ${dirB}`, "main"]);
+const hosts = fakeHarness([`alpha  ${dirA}`, `beta  ${dirB}`, "main"]);
 
 test("an open file with a project passes", () => {
 	const path = join(cases, "stack-070.json");
@@ -522,21 +522,21 @@ test("a project that is empty or not a string fails", () => {
 	}
 });
 
-test("the command records HARNESS_PROJECT before the harness projects, and changes no other byte", () => {
-	const result = runProject({ text: OPEN_TEXT, path: projects, project: "from-env", cwd: dirC });
+test("the command records HARNESS_HOST before the harness hosts, and changes no other byte", () => {
+	const result = runProject({ text: OPEN_TEXT, path: hosts, project: "from-env", cwd: dirC });
 	assert.equal(result.status, 0, result.stderr);
 	assert.equal(result.stdout, OPEN_SUMMARY);
 	assert.equal(result.after, withProjectText("from-env"));
 });
 
 test("the command records the project with the longest folder that holds the current folder", () => {
-	const result = runProject({ text: OPEN_TEXT, path: projects, cwd: dirC });
+	const result = runProject({ text: OPEN_TEXT, path: hosts, cwd: dirC });
 	assert.equal(result.status, 0, result.stderr);
 	assert.equal(result.after, withProjectText("beta"));
 });
 
 test("the command records main when no project folder holds the current folder", () => {
-	const result = runProject({ text: OPEN_TEXT, path: projects, cwd: elsewhere });
+	const result = runProject({ text: OPEN_TEXT, path: hosts, cwd: elsewhere });
 	assert.equal(result.status, 0, result.stderr);
 	assert.equal(result.after, withProjectText("main"));
 });

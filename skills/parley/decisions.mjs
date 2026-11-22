@@ -8,8 +8,8 @@
 // An open file with more than 9 decisions also gives one warning line on stderr, before the state, with the number:
 // restate the design as its nouns, and simplify it before the next round. A contract gives no warning. The warning does
 // not change stdout or the exit code.
-// In an open file with no project, it first records the harness project: $HARNESS_PROJECT when it is set and not
-// empty, else the project of the current folder that `harness projects` gives. Without harness, the file stays as it is.
+// In an open file with no project, it first records the harness host: $HARNESS_HOST when it is set and not
+// empty, else the host of the current folder that `harness hosts` gives. Without harness, the file stays as it is.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -249,13 +249,13 @@ export function shownLabel(decision) {
 	return decision.options.find((option) => option.key === key).label;
 }
 
-// The harness project: $HARNESS_PROJECT when it is set and not empty, else the project whose folder holds the current
+// The harness host: $HARNESS_HOST when it is set and not empty, else the host whose folder holds the current
 // folder, the longest folder first, or main. undefined when harness is not there or fails.
 function harnessProject() {
-	if (process.env.HARNESS_PROJECT) return process.env.HARNESS_PROJECT;
+	if (process.env.HARNESS_HOST) return process.env.HARNESS_HOST;
 	let output;
 	try {
-		output = execFileSync("harness", ["projects"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 });
+		output = execFileSync("harness", ["hosts"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 });
 	} catch {
 		return undefined;
 	}
