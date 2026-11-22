@@ -52,6 +52,7 @@ Protect your context window. Do not implement multi-file features inline when a 
 
 - **Never double-squash `ship` or `campaign` runs.** `ship` already squashes its work into one Conventional Commit (`result.head`), and `campaign` builds a linear chain of squashed commits (`item.head`). Re-squashing via `gh pr merge --squash` rewrites `result.head`, which breaks `workflows optimize` (`git cat-file -e <head>^{commit}`) and ancestor-based `workflows sweep`. Always land finished `ship` and `campaign` branches with `git merge --ff-only` (or `gh pr merge --rebase`).
 - **Never release mid-effort for a single pull request.** Keep release pull requests open until the final wave. For cross-repository CI before a dependency is published on npm, pin the dependency to `git+https://github.com/<owner>/<repo>.git#<sha>` (with `"prepare": "npm run build"`) and switch back to the semver range in the release wave.
+- **No own commits under a live run.** While a run works on a repository, keep your own edits there uncommitted, or put them in the goal of the run. A commit on `main` after the run started stops its branch from landing with `--ff-only`.
 - **One clean tree per finished wave.** Never leave merged worktrees, stale branches, or orphaned terminal spaces behind after a wave lands.
 
 ## Memory and project records
