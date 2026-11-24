@@ -19,7 +19,7 @@ You are the Directly Responsible Individual for the goal. Think on two tracks at
 Protect your context window. Do not implement multi-file features inline when a run or subagent can do the work in a fresh context window.
 
 - **`workflow` runs** (`@vzlentin/pi-workflows`): use `ship` for one coherent commit, `campaign` for a multi-commit goal (never ask a `ship` for more than one commit), `thermoloop` for review and fix rounds on an existing diff, `judge` (with `repo` when outside the target checkout) to score a change, and project scripts such as `drive` (with `cwd` set to the project directory). Always start and resume runs with the `workflow` tool, never `workflows` in `bash`, so the Pi widget tracks them. A run belongs to the harness project of the directory where it started: run `workflows sweep` and `workflows land` for it from that directory. When the installed `workflow` tool has no `cwd` argument, start a project script from a subagent whose `cwd` is the project checkout.
-- **`subagent`** (`@vzlentin/pi-agents`): use for independent code investigations, second opinions, or small isolated tasks. When OptMem (`~/.optmem/memo`) is in use, include `You are a subagent. Don't run memo.` in every subagent prompt.
+- **`subagent`** (`@vzlentin/pi-agents`): use for independent code investigations, second opinions, or small isolated tasks.
 - **Background execution**: start long runs with `background: true` when you coordinate more than one repository or prepare the next wave in parallel.
 - **Context pointers**: communicate with runs through work-item files in `${XDG_STATE_HOME:-$HOME/.local/state}/workflows/items/<slug>.md`, contract paths, commit SHAs, and file paths. Do not duplicate large source files into work-item text when a file pointer suffices.
 
@@ -37,7 +37,7 @@ Protect your context window. Do not implement multi-file features inline when a 
    - For `orda` (and cross-repo stack waves when their parts meet), run `drive` via the `workflow` tool (`name: "drive"`, `cwd` set to the `orda` checkout, `background: true`) and require every step passed, with 0 failed and 0 pending, before landing, unless no step of `docs/drive.md` can see the change (state why in the landing report; when in doubt, run `drive`).
    - Wait for the CI of the pushed head of the run branch to pass.
    - Land the branch onto `main` (or the target branch) with `git merge --ff-only`, push `main`, and delete the remote run branch (`git push origin --delete <branch>`).
-   - Run `workflows sweep --yes` (or `workflows sweep <run-id>... --yes`; `workflows prune` before the Wave 2 swap) so the worktree, local branch, and any `hc` space terminals (`herdr.space=<runId>`) are removed immediately.
+   - Run `workflows sweep --yes` (or `workflows sweep <run-id>... --yes`) so the worktree, local branch, and any `hc` space terminals (`herdr.space=<runId>`) are removed immediately.
    - Start the next dependent wave when it has a contract and the user's go. When it has none, do not start it: prepare the decision with `parley`, then wait. This holds also while the user is away: the leash is one contract long.
 5. **Run state**: before you tell the user that a run still runs, read `workflows list`. The end message of a run can be lost when a message of the user cuts the call that follows it.
 6. **Local tool rebuilds mid-effort**: when a change in a local dependency is needed before the final release, pack from `main` (`npm pack --pack-destination /tmp`) and install into the local tool prefix instead of publishing a premature release.
@@ -59,7 +59,7 @@ Protect your context window. Do not implement multi-file features inline when a 
 
 Tribal knowledge that stays only in your context window is lost at compaction. Persist it in the tools present on the machine:
 
-- **OptMem (`~/.optmem/memo`, when installed)**: wake at session start (`~/.optmem/memo wake`), record a note (`<= 200` bytes) whenever a wave lands, a user preference is learned, or a non-obvious root cause is found, and run `~/.optmem/memo nap` immediately when asked.
+- **The `memory` tool (when present)**: note a decision when a wave lands, a preference of the user, or a root cause that is not obvious.
 - **Project vault or docs (`../vault/SKILL.md` when a vault is configured, or repository docs)**:
   - **Query**: read the relevant `_index.md` and contract before starting or splitting a wave.
   - **Ingest**: update the contract or project record when decisions settle or waves land, citing the repository and commit SHA.
