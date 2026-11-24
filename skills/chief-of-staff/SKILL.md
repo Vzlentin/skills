@@ -59,7 +59,6 @@ Protect your context window. Do not implement multi-file features inline when a 
 
 Tribal knowledge that stays only in your context window is lost at compaction. Persist it in the tools present on the machine:
 
-- **The `memory` tool (when present)**: note a decision when a wave lands, a preference of the user, or a root cause that is not obvious.
 - **Project vault or docs (`../vault/SKILL.md` when a vault is configured, or repository docs)**:
   - **Query**: read the relevant `_index.md` and contract before starting or splitting a wave.
   - **Ingest**: update the contract or project record when decisions settle or waves land, citing the repository and commit SHA.
