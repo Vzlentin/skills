@@ -1,6 +1,9 @@
 // The way back: what the user changes on a page comes back to the agent as one block of text.
 // A field: x-init="$store.back.field('reply 1', $el.value)" x-model="$store.back.values['reply 1']".
 // A field with { list: false } is not in the block: a part of the page reports it.
+// A field with { always: true } is in the block also when it equals its default.
+// A choice: x-data="choice" on a section.choice with data-name, and data-plan when you propose an option. Its field is always in the block,
+// with the key of the picked option, the words of the own box, or nothing. The option of the plan gets the class plan.
 // A part: Alpine.store("back").part(() => "a line"), for a page that builds its own lines.
 // $store.back.text is the block. $store.back.copy() copies it. The bar shows both once the page has a field or a part.
 // Clear asks "Clear? Yes / No" in the page: askClear(), then clear(). The question goes away after 5 s.
@@ -14,13 +17,15 @@ document.addEventListener("alpine:init", () => {
 		values: {},
 		defaults: {},
 		listed: {},
+		always: {},
 		parts: [],
 		// The text of the toast that Copy shows.
 		toast: "",
 		clearing: false,
-		field(name, value, { list = true } = {}) {
+		field(name, value, { list = true, always = false } = {}) {
 			this.defaults[name] = value;
 			this.listed[name] = list;
+			this.always[name] = always;
 			this.values[name] = name in this.edits ? this.edits[name] : value;
 			Alpine.effect(() => {
 				const current = this.values[name];
@@ -48,7 +53,7 @@ document.addEventListener("alpine:init", () => {
 		get text() {
 			const lines = this.parts.map((build) => build()).filter(Boolean);
 			const fields = Object.keys(this.defaults)
-				.filter((name) => this.listed[name] && this.changed(name))
+				.filter((name) => this.listed[name] && (this.always[name] || this.changed(name)))
 				.map((name) => `${name}:\n${String(this.values[name]).trim()}`);
 			return [...(lines.length ? lines : [`[${page}]`]), ...fields].join("\n\n");
 		},
@@ -77,4 +82,29 @@ document.addEventListener("alpine:init", () => {
 			for (const name of Object.keys(this.defaults)) this.values[name] = this.defaults[name];
 		},
 	});
+	Alpine.data("choice", () => ({
+		init() {
+			const { name, plan = "" } = this.$el.dataset;
+			Object.assign(this, { name, plan });
+			const inputs = [...this.$el.querySelectorAll(".option input")];
+			this.keys = inputs.map((input) => input.value);
+			// Alpine names a radio without a name after its x-model: the radios of all the choices would make one group.
+			for (const input of inputs) input.name = name;
+			Alpine.store("back").field(name, plan, { always: true });
+			if (plan) this.$el.querySelector(`.option input[value="${CSS.escape(plan)}"]`)?.closest(".option").classList.add("plan");
+		},
+		get value() {
+			return Alpine.store("back").values[this.name];
+		},
+		set value(value) {
+			Alpine.store("back").values[this.name] = value;
+		},
+		// The own box shows the words of the reader, and is empty when an option is picked. Empty words give back the plan.
+		get own() {
+			return this.keys.includes(this.value) ? "" : this.value;
+		},
+		set own(words) {
+			this.value = words.trim() ? words : this.plan;
+		},
+	}));
 });

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Checks a built page in headless Chrome: the errors of its scripts, the w- tags that did not start,
 // the widgets that do not extend kit.Widget, the scripts that load code from outside the page,
-// the players that do not move, the layout, and tiles of one viewport at 390, 1280 and 1728 px.
+// the players that do not move, the choices that miss a part, the layout, and tiles of one viewport at 390, 1280 and 1728 px.
 // The layout: one left edge, the shell's width and two tracks on a laptop, no side track left empty for long on a laptop, no sideways scroll on a phone,
 // and the same colors in a light and in a dark setting of the viewer.
 // Usage: check.mjs <page.html | url> [out dir] [--from <selector>]
@@ -134,6 +134,33 @@ const LAYOUT = `(() => {
 	return { ...layout, empty };
 })()`;
 
+// The problems of each section.choice: [{ name, part }]. The name is its data-name, or its number on the page from 1 when it has none.
+// A choice needs a data-name that no other choice has, a question, a body, two options or more, a key, a label, gains and costs in each option,
+// and, when its data-plan is not empty, a plan that is one of the keys. An empty data-plan is no plan, as in back.js.
+const CHOICES = `(() => {
+	const all = [...document.querySelectorAll("section.choice")];
+	return all.flatMap((choice, index) => {
+		const name = choice.dataset.name || String(index + 1);
+		const body = choice.querySelector(".body");
+		const problems = [];
+		if (!choice.dataset.name) problems.push("no data-name");
+		else if (all.some((other) => other !== choice && other.dataset.name === choice.dataset.name)) problems.push("the name of another choice");
+		if (!choice.querySelector(".question")?.textContent.trim()) problems.push("no question");
+		if (!body?.textContent.trim() && !body?.querySelector("img,svg,canvas,video")) problems.push("no body");
+		const options = [...choice.querySelectorAll("label.option")];
+		if (options.length < 2) problems.push("fewer than two options");
+		const keys = options.map((option) => option.querySelector("input[type=radio]")?.value ?? "");
+		options.forEach((option, at) => {
+			const key = keys[at];
+			if (!key) problems.push("option " + (at + 1) + " has no key");
+			for (const part of ["label", "gains", "costs"])
+				if (!option.querySelector("." + part)?.textContent.trim()) problems.push("option " + (key || at + 1) + " has no " + part);
+		});
+		if (choice.dataset.plan && !keys.includes(choice.dataset.plan)) problems.push("plan " + choice.dataset.plan + " is not one of the keys " + keys.filter(Boolean).join(", "));
+		return problems.map((part) => ({ name, part }));
+	});
+})()`;
+
 // An import or import() of an http:, https: or // URL, with the URL in group 2.
 const IMPORT = /\bimport\s*(?:\(\s*|[\w$\s{},*]*?\bfrom\s*)?(["'`])((?:https?:)?\/\/[^"'`\s]+)\1/gi;
 // The code that the scripts of the page load from outside it: each src, and each import of a URL.
@@ -210,11 +237,13 @@ try {
 	const groups = [];
 	let widgets;
 	let outside;
+	let choices;
 	let sideways = 0;
 	for (const [width, height] of SIZES) {
 		await open(cdp, url, { width, height, scheme: "light", reduced: true });
 		widgets ??= await evaluate(cdp, LIST_WIDGETS);
 		outside ??= await evaluate(cdp, OUTSIDE_CODE);
+		choices ??= await evaluate(cdp, CHOICES);
 		if (width < 500) sideways = await evaluate(cdp, SIDEWAYS);
 		groups.push({ width, tiles: await tiles(cdp, width, height) });
 	}
@@ -245,6 +274,10 @@ try {
 	if (outside.length) {
 		problems++;
 		console.log(`outside code: ${outside.join(", ")}. Use the global Lit and kit, and put other code in a script of the page`);
+	}
+	for (const { name, part } of choices) {
+		problems++;
+		console.log(`choice ${name}: ${part}. A choice has a data-name of its own, a question, a body, two options or more with a key, a label, gains and costs each, and no data-plan, an empty one, or one that is one of the keys`);
 	}
 	const { off, clippedCode = [] } = layout;
 	if (clippedCode.length) {

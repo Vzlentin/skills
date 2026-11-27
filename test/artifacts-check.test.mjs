@@ -45,7 +45,18 @@ function tilesOf(stdout) {
 	return groups;
 }
 
-const [lit, outside, kit, tall, from, nothing, invalid] = await Promise.all([
+// A choice with the data-name, the data-plan and the costs of option b that the test gives. An empty name or costs leaves out its attribute or span.
+// An undefined plan leaves out data-plan, and an empty plan gives data-plan="".
+const choice = (name, plan, costs) => `<section class="choice"${name ? ` data-name="${name}"` : ""}${plan !== undefined ? ` data-plan="${plan}"` : ""} x-data="choice">
+<p class="question">Where does the ${name} live?</p>
+<div class="body"><p>The ${name} is read on each start.</p></div>
+<label class="option"><input type="radio" value="a" x-model="value"><span class="key">a</span><span class="label">In the package folder</span><span class="gains">One folder to remove</span><span class="costs">Lost on each update</span></label>
+<label class="option"><input type="radio" value="b" x-model="value"><span class="key">b</span><span class="label">In the home folder</span><span class="gains">Kept on each update</span>${costs ? `<span class="costs">${costs}</span>` : ""}</label>
+<input class="own" type="text" placeholder="Or your own answer" x-model="own">
+</section>
+`;
+
+const [lit, outside, kit, tall, from, nothing, invalid, noCosts, badPlan, choices, noName, sameName] = await Promise.all([
 	check(
 		"lit",
 		`<h1>Widgets on Lit</h1>
@@ -104,6 +115,11 @@ customElements.define("w-ok", Ok);
 	check("from", TALL, {}, "--from", "#options"),
 	check("nothing", "<h1>No match</h1>\n", {}, "--from", "#nothing"),
 	check("invalid", "<h1>Not a selector</h1>\n", {}, "--from", "#["),
+	check("no-costs", `<h1>A choice with no costs</h1>\n${choice("cache", "b", "")}`),
+	check("bad-plan", `<h1>A choice with a bad plan</h1>\n${choice("cache", "c", "One more folder")}`),
+	check("choices", `<h1>Four choices</h1>\n${choice("cache", "b", "One more folder")}${choice("lock", "a", "One more file")}${choice("log", "", "One more file")}${choice("trace", undefined, "One more file")}`),
+	check("no-name", `<h1>A choice with no name</h1>\n${choice("cache", "b", "One more folder")}${choice("", "a", "One more file")}`),
+	check("same-name", `<h1>Two choices of one name</h1>\n${choice("cache", "b", "One more folder")}${choice("cache", "a", "One more file")}`),
 ]);
 const skip = lit.skip;
 
@@ -166,4 +182,30 @@ test("a --from that matches no element, or is not a selector, stops the check wi
 	assert.match(nothing.stderr, /^[^\n]*#nothing[^\n]*\n$/);
 	assert.equal(invalid.status, 2, invalid.stderr);
 	assert.match(invalid.stderr, /^[^\n]*#\[[^\n]*\n$/);
+});
+
+test("a choice option with no costs is a problem that names the choice and the option", { skip }, () => {
+	assert.equal(noCosts.status, 1, noCosts.stdout + noCosts.stderr);
+	assert.match(noCosts.stdout, /^choice cache: option b has no costs\. /m);
+});
+
+test("a choice whose plan is not one of its keys is a problem", { skip }, () => {
+	assert.equal(badPlan.status, 1, badPlan.stdout + badPlan.stderr);
+	assert.match(badPlan.stdout, /^choice cache: plan c is not one of the keys a, b\. /m);
+});
+
+test("a page with whole choices passes the check, also a choice with no data-plan or an empty one", { skip }, () => {
+	assert.equal(choices.status, 0, choices.stdout + choices.stderr);
+	assert.doesNotMatch(choices.stdout, /^choice /m);
+});
+
+test("a choice with no data-name is a problem that gives its number on the page", { skip }, () => {
+	assert.equal(noName.status, 1, noName.stdout + noName.stderr);
+	assert.match(noName.stdout, /^choice 2: no data-name\. /m);
+	assert.doesNotMatch(noName.stdout, /^choice cache: /m);
+});
+
+test("two choices of one data-name are a problem", { skip }, () => {
+	assert.equal(sameName.status, 1, sameName.stdout + sameName.stderr);
+	assert.match(sameName.stdout, /^choice cache: the name of another choice\. /m);
 });

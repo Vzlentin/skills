@@ -1,6 +1,6 @@
 ---
 name: artifacts
-description: "Make HTML pages for the user and get them to him: pages that teach, with widgets that the reader plays, pages that ask for his edits, and copies to share. Covers the approach, the terminal theme, the base shell, Alpine and widgets, the way back, the check, and the hosts (local file, Tailscale, Radius, Claude Artifact)."
+description: "Make HTML pages for the user and get them to him: pages that teach, with widgets that the reader plays, pages that ask for his edits, and copies to share. Covers the approach, the terminal theme, the base shell, Alpine and widgets, the way back, the check, and the hosts (local file, Radius, Claude Artifact)."
 ---
 
 # artifacts
@@ -96,6 +96,24 @@ The way back is how the user's edits come back to you: one store, `$store.back`,
 - The browser keeps only the user's edits. When you build the page again with new defaults, a field that he did not edit shows the new default.
 - The user pastes the block to you. Read it, then apply it.
 
+### A choice
+
+A choice asks the reader to pick one option: a question, a body (any HTML: text, a table, a `<diagram>`), two options or more, and a box for his own words. Each option has a key, a label, gains and costs. `data-plan` is optional: it is the key of the option that you propose, picked when the page opens, with a badge. Without it, no option is picked.
+
+```html
+<section class="choice" data-name="cache" data-plan="b" x-data="choice">
+<p class="question">Where does the cache live?</p>
+<div class="body"><p>The cache is read on each start.</p></div>
+<label class="option"><input type="radio" value="a" x-model="value"><span class="key">a</span><span class="label">In the package folder</span><span class="gains">One folder to remove</span><span class="costs">Lost on each update</span></label>
+<label class="option"><input type="radio" value="b" x-model="value"><span class="key">b</span><span class="label">In the home folder</span><span class="gains">Kept on each update</span><span class="costs">One more folder</span></label>
+<input class="own" type="text" placeholder="Or your own answer" x-model="own">
+</section>
+```
+
+- The value of a choice is always in the block, also when the reader does not change it: `cache:` and the picked key, his own words, or nothing when he picked nothing. `data-name` is the name of the field: each choice needs its own.
+- A choice with a long body goes in a `.split`, with its view beside it.
+- The check fails a choice that has no `data-name` or the `data-name` of another choice, no question, no body, fewer than two options, an option with no key, label, gains or costs, or a `data-plan` that is not one of the keys.
+
 ### Widgets
 
 When the body has a `<w-…>` tag, the page gets Lit (`{baseDir}/vendor/lit.min.js`) and the kit (`{baseDir}/kit.js`). A code sample does not count: its `<` is escaped.
@@ -106,13 +124,6 @@ When the body has a `<w-…>` tag, the page gets Lit (`{baseDir}/vendor/lit.min.
 Ready widgets are in `{baseDir}/widgets/`: the page gets `widgets/w-<name>.js` for each `<w-name>` tag. Use them as tags, with no script.
 
 - `<w-aside>The question that the reader asks here</w-aside>`: answer it in the text after it.
-- `<w-parley></w-parley>`: the asks of a parley as cards. An open ask shows its options, with the plan chosen. A settled ask shows its decision first. A parley page is the rundown, then one `<w-parley>`.
-  - In a host that has `readAsks` and `sendAnswers`, the widget reads the asks, and one Send sends the answers of the open asks.
-  - In other hosts, the widget reads the asks from a block inside the tag, and Copy gives the answer line. Put in the block the `{ parley, asks }` that `readAsks` gives, as JSON. Write each `<` as `\u003c`:
-
-```html
-<w-parley><script type="application/json">{"parley": {"slug": "install-lock", "status": "open", ...}, "asks": [...]}</script></w-parley>
-```
 
 A new widget goes in a `<script type="module">` of the page. It extends `kit.Widget` and uses the global `Lit` and `kit`, with no import from a URL. Each module script has its own scope, so two widgets can use the same names.
 
@@ -174,7 +185,7 @@ tiles at 1728 px:
 
 `--from '<selector>'`, for example `--from '#options'`, starts the tiles at the first element that matches.
 
-It lists the errors of the scripts, the `<w-…>` tags that did not start, the widgets that do not extend `kit.Widget`, the code that a script loads from outside the page (a `src`, or an `import` of a URL), and the players that do not move. It checks the layout: one left edge, the shell's `--page` and `--measure` with two tracks at 1728 px, no text alone for more than 700 px with the side track empty at 1728 px, no sideways scroll at 390 px, and the same colors in a light and a dark setting. Its exit code is 1 when it finds a problem, and 2 when `--from` matches no element. It needs Chrome, Chromium or Edge: set `CHROME=<path>` when it does not find one.
+It lists the errors of the scripts, the `<w-…>` tags that did not start, the widgets that do not extend `kit.Widget`, the code that a script loads from outside the page (a `src`, or an `import` of a URL), the players that do not move, and the choices that miss a part. It checks the layout: one left edge, the shell's `--page` and `--measure` with two tracks at 1728 px, no text alone for more than 700 px with the side track empty at 1728 px, no sideways scroll at 390 px, and the same colors in a light and a dark setting. Its exit code is 1 when it finds a problem, and 2 when `--from` matches no element. It needs Chrome, Chromium or Edge: set `CHROME=<path>` when it does not find one.
 
 - Take screenshots only with `check.mjs`, and read only the tile paths that it prints. Never run headless Chrome with `--screenshot`, never crop a tile, and never guess a file name. When the tiles are missing, fix the error and run the check again.
 - Pick the tiles to read by their heading. Ask: what covers the screen on the phone? Is the laptop screen full, with each view next to its text?
@@ -185,66 +196,7 @@ It lists the errors of the scripts, the `<w-…>` tags that did not start, the w
 
 ## Hosts
 
-When the user is at this machine, the local file works. When he is not (on his phone, in a remote session), the host must give him a link. Use the first host that is there: Tailscale when this machine is on a tailnet, then Radius when its tools (`artifacts_create`, ...) are there, else the Claude Code Artifact. Tailscale comes first because it needs no upload and no probe of tools.
-
-### Tailscale
-
-The host is a static server of `/tmp/pages`, the folder of the built pages, behind `tailscale serve`. Use it when this machine is on a tailnet with HTTPS. Do these steps in this order:
-
-1. Run the probe:
-
-   ```sh
-   tailscale status --json --peers=false | node -e 'const s = JSON.parse(require("fs").readFileSync(0, "utf8")); console.log(s.BackendState, "https" in (s.Self?.CapMap ?? {}) ? "https" : "no-https", s.Self?.DNSName?.replace(/\.$/, ""))'
-   ```
-
-   It prints `Running https <DNS name>` when this host works. `<DNS name>` is `Self.DNSName` with no final dot. When it prints another thing, or the `tailscale` command is not there, use the next host.
-
-2. Read the mappings:
-
-   ```sh
-   tailscale serve status
-   ```
-
-   Each block of the output is one port. Its first line is `https://<DNS name>` for port 443, or `https://<DNS name>:<https port>` for another port, then `(tailnet only)` or `(Funnel on)`. Each `|-- <path> <type> <target>` line under it is one mapping of that port. A `/pages` line has the path `/pages/` (a folder) or `/pages` (a proxy).
-
-   In any block, a `/pages` line with `path /tmp/pages`, or with `proxy http://127.0.0.1:<port>`, already serves the pages: reuse it. For a `proxy` line, do step 4. Then go to step 5.
-
-3. Else add one mapping. First pick its `<https port>`. It is 443, unless the 443 block is `(Funnel on)` or has a `/pages` line. Else it is a port that does not show in the output, for example 8443. This choice keeps each existing mapping as it is: `tailscale serve` turns Funnel off on its port, and a new `/pages` mapping replaces the `/pages` line of its port. When the `<https port>` is not 443, add `--https=<https port>` after `--bg` in each `tailscale serve` command below.
-
-   The way: `tailscale serve --bg --set-path /pages /tmp/pages`. Tailscale serves the folder itself, with no other process. `--bg` keeps the mapping after the command ends.
-
-   The fallback, when `tailscale serve` refuses a folder (the macOS app, or a user who cannot run `sudo tailscale`): a static server that binds 127.0.0.1 only, on a free `<port>`, behind `tailscale serve`. Start the server, and keep the PID that the second line prints:
-
-   ```sh
-   nohup python3 -m http.server <port> --bind 127.0.0.1 --directory /tmp/pages >/dev/null 2>&1 &
-   echo $!
-   ```
-
-   Do step 4. When the check passes, map the port:
-
-   ```sh
-   tailscale serve --bg --set-path /pages http://127.0.0.1:<port>
-   ```
-
-   Then go to step 5.
-
-4. Check that the server on `<port>` gives this page:
-
-   ```sh
-   curl -fsS --retry 5 --retry-connrefused http://127.0.0.1:<port>/<slug>/ | cmp -s - /tmp/pages/<slug>/index.html
-   ```
-
-   The check passes when the exit code is 0. A `curl: (7)` line can come first, because curl tries again while the server starts.
-
-   - On reuse, when the check fails, run the start commands of step 3 again with the same port, because the server stops with the machine. Then do the check again.
-   - After a start, when the check fails, stop the server by its PID and use the next host.
-
-5. Give the link: `https://<DNS name>/pages/<slug>/` when the `<https port>` is 443, else `https://<DNS name>:<https port>/pages/<slug>/`. The `<https port>` is the port of the block that holds the mapping. Keep the final `/`.
-
-- Never run `tailscale serve reset`: it removes every mapping.
-- The pages stay on the tailnet. Never use `tailscale funnel`: it puts the page on the public internet.
-- The link opens only on the devices of the user's tailnet. For other people, use the share copy on another host.
-- If `tailscale serve` fails for another reason, use the next host.
+When the user is at this machine, the local file works. When he is not (on his phone, in a remote session), the host must give him a link. Use the first host that is there: Radius when its tools (`artifacts_create`, ...) are there, else the Claude Code Artifact.
 
 ### Radius
 

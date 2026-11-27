@@ -1,5 +1,5 @@
 - Each skill is `skills/<name>/` with a `SKILL.md`. People install them with `npx skills add Vzlentin/skills -g`, which puts each folder in `~/.agents/skills/<name>/`, side by side.
-- Dependencies go one way: `parley` uses `artifacts` and `show-me`, `show-me` sends pages to `artifacts`, and `artifacts` knows no other skill. A script imports another skill only by a sibling path (`../artifacts/render.mjs`).
+- Dependencies go one way: `show-me` sends pages to `artifacts`, and `artifacts` knows no other skill. A script imports another skill only by a sibling path (`../artifacts/render.mjs`).
 - Every skill works on Linux, WSL and macOS, for any user: no personal paths, names or accounts. A tool that one platform lacks gets a branch for the others, or a fallback. A skill for a macOS-only app, such as `dia`, works on macOS only: its description and the README say so, and its script stops with a clear error on other platforms.
 - A skill does not need a vault, Ghostty, Herdr or Radius. When one is there, the skill may use it.
 - Scripts run on Node.js 22.19 or later with no install step. They use only Node built-ins, the files of the skill, and global npm packages that the README names.
