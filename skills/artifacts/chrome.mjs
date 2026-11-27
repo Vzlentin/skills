@@ -13,17 +13,18 @@ import { setTimeout as sleep } from "node:timers/promises";
 export async function startChrome() {
 	const path = findChrome();
 	const profile = mkdtempSync(join(tmpdir(), "chrome-"));
-	const chrome = spawn(path, ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "about:blank"], { stdio: "ignore" });
-	// Chrome and its helpers can still write to the profile for a moment after the main process exits,
-	// so the removal tries again on ENOTEMPTY and EBUSY.
+	const chrome = spawn(path, ["--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", "about:blank"], { stdio: "ignore", detached: true });
+	// Chrome leads its own process group, so stop() also stops its helpers, which write to the profile.
+	// They can still write for a moment after they get the signal, so the removal tries again on ENOTEMPTY and EBUSY.
 	const stop = async () => {
 		if (chrome.exitCode === null && chrome.signalCode === null) {
 			const exited = once(chrome, "exit");
-			chrome.kill();
-			const timer = setTimeout(() => chrome.kill("SIGKILL"), 5000);
+			killGroup(chrome, "SIGTERM");
+			const timer = setTimeout(() => killGroup(chrome, "SIGKILL"), 5000);
 			await exited;
 			clearTimeout(timer);
 		}
+		killGroup(chrome, "SIGKILL");
 		rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 	};
 	try {
@@ -46,6 +47,14 @@ export async function startChrome() {
 		await stop();
 		throw error;
 	}
+}
+
+// Sends signal to the process group of chrome. When the group is gone, nothing happens.
+function killGroup(chrome, signal) {
+	if (!chrome.pid) return;
+	try {
+		process.kill(-chrome.pid, signal);
+	} catch {}
 }
 
 function findChrome() {
